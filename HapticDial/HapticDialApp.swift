@@ -2,9 +2,9 @@
 import SwiftUI
 import Combine
 import AVFoundation
-import CoreHaptics  // 添加 CoreHaptics 导入
+import CoreHaptics
 import CoreMedia
-import AudioToolbox  // 为了使用 ExtAudioFileCreateWithURL
+import AudioToolbox
 
 @main
 struct HapticDialApp: App {
@@ -25,6 +25,9 @@ struct HapticDialApp: App {
         
         // 设置音频会话
         setupAudioSession()
+        
+        // 预初始化音频资源
+        _ = AudioResources.shared
     }
     
     var body: some Scene {
@@ -198,9 +201,9 @@ struct HapticDialApp: App {
     private func initializeAudioSystem() {
         print("🔊 初始化音频系统...")
         
-        // 生成示例音频文件（仅用于演示）
+        // 异步生成示例音频文件
         DispatchQueue.global(qos: .utility).async {
-            AudioResources.shared.generateSampleSounds()
+            AudioResources.shared.checkAndGenerateMissingSounds()
         }
         
         // 检查音频权限
@@ -284,7 +287,6 @@ struct HapticDialApp: App {
             appState.performanceLevel = .high
         } else {
             // 根据设备型号粗略判断
-            // 使用新的方式获取屏幕信息
             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                 let screenSize = windowScene.screen.bounds.size
                 let screenArea = screenSize.width * screenSize.height
@@ -381,9 +383,7 @@ struct HapticDialApp: App {
             print("📱 应用进入后台")
             self.appState.isInBackground = true
             
-            // 暂停耗电功能 - 调用实际存在的方法
-            // 注意：SmartEffectsManager 目前没有 pauseMonitoring 方法
-            // 我们这里暂时注释掉，或者添加相应的方法
+            // 暂停耗电功能
             // SmartEffectsManager.shared.pauseMonitoring()
             
             // 保存当前状态
@@ -399,8 +399,7 @@ struct HapticDialApp: App {
             print("📱 应用回到前台")
             self.appState.isInBackground = false
             
-            // 恢复功能 - 调用实际存在的方法
-            // 注意：SmartEffectsManager 目前没有 resumeMonitoring 方法
+            // 恢复功能
             // SmartEffectsManager.shared.resumeMonitoring()
             
             // 检查电池状态
@@ -420,7 +419,6 @@ struct HapticDialApp: App {
             
             // 清理资源
             HapticManager.shared.stopContinuousHaptic()
-            // 注意：SmartEffectsManager 目前没有 cleanup 方法
             // SmartEffectsManager.shared.cleanup()
         }
     }
@@ -655,12 +653,15 @@ class AppState: ObservableObject {
 
 // MARK: - 音频资源管理器
 
-class AudioResources {
+class AudioResources: ObservableObject {
     static let shared = AudioResources()
     
     private let fileManager = FileManager.default
     private let documentsURL: URL
-    private var generatedSounds: Set<String> = []
+    private var audioPlayers: [String: AVAudioPlayer] = [:]
+    
+    @Published var isGeneratingSounds = false
+    @Published var generationProgress: Double = 0.0
     
     private init() {
         // 获取文档目录
@@ -672,21 +673,22 @@ class AudioResources {
             try? fileManager.createDirectory(at: audioDirectory, withIntermediateDirectories: true)
         }
         
-        // 加载已生成的声音列表
-        loadGeneratedSounds()
+        print("🎵 AudioResources 初始化完成")
     }
     
-    func generateSampleSounds() {
-        print("🎵 开始生成示例音频...")
-        
-        // 定义要生成的声音
-        let sounds = [
+    // MARK: - 声音文件检查
+    
+    func checkAndGenerateMissingSounds() {
+        let requiredSounds = [
+            ("click", 1000, 0.08, 0.3),
+            ("tick", 1200, 0.05, 0.2),
+            ("pop", 800, 0.12, 0.4),
             ("mechanical_click", 1000, 0.08, 0.3),
             ("mechanical_tick", 1200, 0.05, 0.2),
             ("mechanical_pop", 800, 0.12, 0.4),
-            ("digital_click", 2000, 0.06, 0.3),
-            ("digital_tick", 1800, 0.04, 0.25),
-            ("digital_pop", 1500, 0.1, 0.35),
+            ("digital_beep", 2000, 0.06, 0.3),
+            ("digital_tone", 1800, 0.04, 0.25),
+            ("digital_blip", 1500, 0.1, 0.35),
             ("water_drop", 600, 0.15, 0.5),
             ("wood_tap", 400, 0.12, 0.3),
             ("bubble_pop", 500, 0.1, 0.4),
@@ -695,177 +697,194 @@ class AudioResources {
             ("energy_pop", 2800, 0.09, 0.45)
         ]
         
-        // 在后台线程生成声音
+        // 在后台检查并生成声音
         DispatchQueue.global(qos: .userInitiated).async {
-            for (name, frequency, duration, volume) in sounds {
-                // 检查是否已生成
-                if !self.generatedSounds.contains(name) {
-                    self.generateTone(name: name, frequency: Float(frequency), duration: duration, volume: Float(volume))
-                    self.generatedSounds.insert(name)
-                    self.saveGeneratedSounds()
-                    
-                    // 短暂延迟，避免同时生成太多文件
-                    Thread.sleep(forTimeInterval: 0.1)
+            self.isGeneratingSounds = true
+            
+            for (index, (name, frequency, duration, volume)) in requiredSounds.enumerated() {
+                if !self.soundFileExists(name) {
+                    print("🎵 生成声音: \(name)")
+                    self.generateTone(name: name, frequency: Float(frequency),
+                                     duration: duration, volume: Float(volume))
                 }
+                
+                // 更新进度
+                DispatchQueue.main.async {
+                    self.generationProgress = Double(index + 1) / Double(requiredSounds.count)
+                }
+                
+                // 短暂延迟
+                Thread.sleep(forTimeInterval: 0.05)
             }
             
-            print("✅ 示例音频生成完成，共 \(self.generatedSounds.count) 个文件")
+            DispatchQueue.main.async {
+                self.isGeneratingSounds = false
+                print("✅ 声音文件检查完成")
+            }
         }
     }
     
+    private func soundFileExists(_ name: String) -> Bool {
+        let url = getAudioURL(for: name)
+        return fileManager.fileExists(atPath: url?.path ?? "")
+    }
+    
+    func getAudioURL(for soundName: String) -> URL? {
+        let possibleExtensions = ["caf", "wav", "mp3", "m4a", "aac"]
+        
+        for ext in possibleExtensions {
+            let url = documentsURL.appendingPathComponent("AudioResources/\(soundName).\(ext)")
+            if fileManager.fileExists(atPath: url.path) {
+                return url
+            }
+        }
+        
+        return nil
+    }
+    
+    // MARK: - 声音生成
+    
     private func generateTone(name: String, frequency: Float, duration: Double, volume: Float) {
-        // 简单生成正弦波音频文件
-        let outputURL = documentsURL.appendingPathComponent("\(name).caf")
+        let outputURL = documentsURL.appendingPathComponent("AudioResources/\(name).caf")
         
         // 如果文件已存在，跳过生成
         if fileManager.fileExists(atPath: outputURL.path) {
-            print("🎵 音频文件已存在: \(name)")
             return
         }
         
-        // 创建音频文件设置
-        var asbd = AudioStreamBasicDescription()
-        asbd.mSampleRate = 44100.0
-        asbd.mFormatID = kAudioFormatLinearPCM
-        asbd.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked
-        asbd.mBytesPerPacket = 4
-        asbd.mFramesPerPacket = 1
-        asbd.mBytesPerFrame = 4
-        asbd.mChannelsPerFrame = 1
-        asbd.mBitsPerChannel = 32
-        asbd.mReserved = 0
-        
-        var audioFile: ExtAudioFileRef?
-        
-        // 创建音频文件
-        let status = ExtAudioFileCreateWithURL(
-            outputURL as CFURL,
-            kAudioFileCAFType,
-            &asbd,
-            nil,
-            AudioFileFlags.eraseFile.rawValue,
-            &audioFile
-        )
-        
-        guard status == noErr, let file = audioFile else {
-            print("❌ 创建音频文件失败: \(name)")
-            return
-        }
-        
-        // 生成音频数据
         let sampleRate: Double = 44100.0
         let frameCount = AVAudioFrameCount(duration * sampleRate)
-        let buffer = AVAudioPCMBuffer(pcmFormat: AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!, frameCapacity: frameCount)!
+        
+        // 创建音频格式
+        let audioFormat = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)
+        
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: audioFormat!, frameCapacity: frameCount) else {
+            print("❌ 无法创建音频缓冲区: \(name)")
+            return
+        }
+        
         buffer.frameLength = frameCount
         
-        let channelData = buffer.floatChannelData?[0]
+        // 获取音频数据指针
+        guard let channelData = buffer.floatChannelData?[0] else {
+            print("❌ 无法获取音频数据通道: \(name)")
+            return
+        }
         
         // 生成正弦波
         let phaseIncrement = (2.0 * .pi * Double(frequency)) / sampleRate
         
         for frame in 0..<Int(frameCount) {
-            let samplePhase = Float(phaseIncrement * Double(frame))
-            
-            // 应用ADSR包络
             let envelope = adsrEnvelope(frame: frame, totalFrames: Int(frameCount))
-            
-            // 生成正弦波样本
-            let sample = sin(samplePhase) * volume * envelope
-            
-            channelData?[frame] = sample
+            let sample = sin(phaseIncrement * Double(frame)) * Double(volume) * envelope
+            channelData[frame] = Float(sample)
         }
         
-        // 写入音频文件
-        let writeStatus = ExtAudioFileWrite(file, frameCount, buffer.audioBufferList)
-        
-        // 清理
-        ExtAudioFileDispose(file)
-        
-        if writeStatus == noErr {
-            print("✅ 生成音频: \(name) (\(Int(frequency))Hz, \(duration)s)")
-        } else {
-            print("❌ 写入音频文件失败: \(name)")
+        // 写入文件
+        do {
+            let audioFile = try AVAudioFile(forWriting: outputURL,
+                                           settings: audioFormat!.settings,
+                                           commonFormat: .pcmFormatFloat32,
+                                           interleaved: false)
+            
+            try audioFile.write(from: buffer)
+            print("✅ 生成声音文件: \(name) (\(Int(frequency))Hz, \(duration)s)")
+        } catch {
+            print("❌ 写入音频文件失败: \(name), 错误: \(error)")
         }
     }
     
-    private func adsrEnvelope(frame: Int, totalFrames: Int) -> Float {
-        let attack = 0.1 // 起音时间比例
-        let decay = 0.2  // 衰减时间比例
+    private func adsrEnvelope(frame: Int, totalFrames: Int) -> Double {
+        let attack = 0.1  // 起音时间比例
+        let decay = 0.2   // 衰减时间比例
         let sustain = 0.6 // 持续电平
         let release = 0.1 // 释音时间比例
         
-        let attackFrames = Int(Float(totalFrames) * Float(attack))
-        let decayFrames = Int(Float(totalFrames) * Float(decay))
-        let releaseStart = totalFrames - Int(Float(totalFrames) * Float(release))
+        let attackFrames = Int(Double(totalFrames) * attack)
+        let decayFrames = Int(Double(totalFrames) * decay)
+        let releaseStart = totalFrames - Int(Double(totalFrames) * release)
         
         if frame < attackFrames {
-            // 起音阶段：线性增加到1.0
-            return Float(frame) / Float(attackFrames)
+            // 起音阶段
+            return Double(frame) / Double(attackFrames)
         } else if frame < attackFrames + decayFrames {
-            // 衰减阶段：线性衰减到持续电平
-            let decayProgress = Float(frame - attackFrames) / Float(decayFrames)
-            return 1.0 - decayProgress * (1.0 - Float(sustain))
+            // 衰减阶段
+            let decayProgress = Double(frame - attackFrames) / Double(decayFrames)
+            return 1.0 - decayProgress * (1.0 - sustain)
         } else if frame < releaseStart {
             // 持续阶段
-            return Float(sustain)
+            return sustain
         } else {
-            // 释音阶段：线性衰减到0
-            let releaseProgress = Float(frame - releaseStart) / Float(totalFrames - releaseStart)
-            return Float(sustain) * (1.0 - releaseProgress)
+            // 释音阶段
+            let releaseProgress = Double(frame - releaseStart) / Double(totalFrames - releaseStart)
+            return sustain * (1.0 - releaseProgress)
         }
     }
     
-    func getAudioURL(for soundName: String) -> URL? {
-        let url = documentsURL.appendingPathComponent("\(soundName).caf")
-        return fileManager.fileExists(atPath: url.path) ? url : nil
-    }
+    // MARK: - 声音播放
     
     func playSound(_ soundName: String) {
         guard let url = getAudioURL(for: soundName) else {
             print("❌ 音频文件不存在: \(soundName)")
+            
+            // 尝试播放系统声音作为备用
+            playSystemSound(soundName)
             return
         }
         
         do {
-            let player = try AVAudioPlayer(contentsOf: url)
-            player.prepareToPlay()
+            let player: AVAudioPlayer
+            
+            if let existingPlayer = audioPlayers[soundName] {
+                player = existingPlayer
+            } else {
+                player = try AVAudioPlayer(contentsOf: url)
+                player.prepareToPlay()
+                audioPlayers[soundName] = player
+            }
+            
+            player.currentTime = 0
             player.play()
             print("▶️ 播放音频: \(soundName)")
         } catch {
-            print("❌ 播放音频失败: \(error)")
+            print("❌ 播放音频失败: \(soundName), 错误: \(error)")
+            playSystemSound(soundName)
         }
     }
     
-    private func loadGeneratedSounds() {
-        let key = "generated_sounds"
-        if let sounds = UserDefaults.standard.stringArray(forKey: key) {
-            generatedSounds = Set(sounds)
-        }
-    }
-    
-    private func saveGeneratedSounds() {
-        UserDefaults.standard.set(Array(generatedSounds), forKey: "generated_sounds")
-    }
-    
-    func cleanupOldFiles() {
-        // 清理30天前的音频文件
-        let cutoffDate = Date().addingTimeInterval(-30 * 24 * 60 * 60)
+    private func playSystemSound(_ soundName: String) {
+        let soundMapping: [String: SystemSoundID] = [
+            "click": 1104,
+            "tick": 1103,
+            "pop": 1105,
+            "beep": 1057,
+            "tone": 1053,
+            "blip": 1055,
+            "laser": 4095,
+            "synth": 4094,
+            "energy": 4097,
+            "water_drop": 1005,
+            "wood_tap": 1100
+        ]
         
-        do {
-            let files = try fileManager.contentsOfDirectory(at: documentsURL, includingPropertiesForKeys: [.creationDateKey])
-            
-            for file in files {
-                if file.pathExtension == "caf" {
-                    let attributes = try fileManager.attributesOfItem(atPath: file.path)
-                    if let creationDate = attributes[.creationDate] as? Date,
-                       creationDate < cutoffDate {
-                        try fileManager.removeItem(at: file)
-                        print("🗑️ 清理旧音频文件: \(file.lastPathComponent)")
-                    }
-                }
-            }
-        } catch {
-            print("❌ 清理音频文件失败: \(error)")
+        if let soundID = soundMapping[soundName] {
+            AudioServicesPlaySystemSound(soundID)
+            print("🎵 播放系统声音: \(soundName) (ID: \(soundID))")
+        } else {
+            // 默认声音
+            AudioServicesPlaySystemSound(1104)
+            print("🎵 播放默认系统声音")
         }
+    }
+    
+    // MARK: - 清理
+    
+    func cleanup() {
+        audioPlayers.removeAll()
+        print("🧹 AudioResources 清理完成")
+    }
+    
+    deinit {
+        cleanup()
     }
 }

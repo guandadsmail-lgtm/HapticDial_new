@@ -170,7 +170,7 @@ class SoundPackManager: ObservableObject {
         
         // 使用 Zip 库解压文件
         do {
-            try Zip.unzipFile(zipURL, destination: unzipDirectory, overwrite: true, password: nil as String?, progress: nil)
+            try Zip.unzipFile(zipURL, destination: unzipDirectory, overwrite: true, password: nil, progress: nil)
             print("✅ 解压成功: \(unzipDirectory.path)")
         } catch {
             throw NSError(domain: "SoundPackManager", code: 7,
@@ -202,7 +202,7 @@ class SoundPackManager: ObservableObject {
         
         // 使用 Zip 库压缩文件
         do {
-            try Zip.zipFiles(paths: [packDirectory], zipFilePath: zipFileURL, password: nil as String?, progress: nil)
+            try Zip.zipFiles(paths: [packDirectory], zipFilePath: zipFileURL, password: nil, progress: nil)
             print("✅ 压缩成功: \(zipFileURL.path)")
             return zipFileURL
         } catch {
@@ -364,11 +364,18 @@ class SoundPackManager: ObservableObject {
     func getSoundFileURL(forSoundPack packId: String, soundName: String) -> URL? {
         guard let pack = installedSoundPacks.first(where: { $0.id == packId }),
               let directoryURL = pack.directoryURL else {
+            print("❌ 未找到声音包或目录: \(packId)")
             return nil
         }
         
+        // 首先尝试直接查找文件名
+        let directURL = directoryURL.appendingPathComponent(soundName)
+        if fileManager.fileExists(atPath: directURL.path) {
+            return directURL
+        }
+        
         // 尝试各种可能的扩展名
-        let possibleExtensions = ["caf", "wav", "mp3", "m4a"]
+        let possibleExtensions = ["caf", "wav", "mp3", "m4a", "aac"]
         
         for ext in possibleExtensions {
             let fileURL = directoryURL.appendingPathComponent("\(soundName).\(ext)")
@@ -377,10 +384,32 @@ class SoundPackManager: ObservableObject {
             }
         }
         
-        // 如果没有找到带扩展名的文件，尝试直接使用soundName
-        let directURL = directoryURL.appendingPathComponent(soundName)
-        if fileManager.fileExists(atPath: directURL.path) {
-            return directURL
+        // 尝试在soundFiles中查找
+        if let soundFiles = pack.soundFiles {
+            for fileName in soundFiles {
+                let fileURL = directoryURL.appendingPathComponent(fileName)
+                if fileManager.fileExists(atPath: fileURL.path) {
+                    return fileURL
+                }
+            }
+        }
+        
+        // 最后尝试在声音列表中查找
+        for sound in pack.sounds {
+            if sound.name.lowercased() == soundName.lowercased() {
+                let fileURL = directoryURL.appendingPathComponent(sound.fileName)
+                if fileManager.fileExists(atPath: fileURL.path) {
+                    return fileURL
+                }
+            }
+        }
+        
+        print("❌ 在声音包 \(packId) 中未找到声音: \(soundName)")
+        
+        // 回退到内置声音
+        if let builtInURL = AudioResources.shared.getAudioURL(for: soundName) {
+            print("🔄 使用内置声音: \(soundName)")
+            return builtInURL
         }
         
         return nil
@@ -411,16 +440,16 @@ class SoundPackManager: ObservableObject {
             
             // 测试压缩
             let zipFile = tempDir.appendingPathComponent("test.zip")
-            try Zip.zipFiles(paths: [testFile], zipFilePath: zipFile, password: nil as String?, progress: nil)
+            try? Zip.zipFiles(paths: [testFile], zipFilePath: zipFile, password: nil, progress: nil)
             print("✅ 压缩测试成功: \(zipFile.lastPathComponent)")
             
             // 测试解压
             let unzipDir = tempDir.appendingPathComponent("unzipped")
-            try Zip.unzipFile(zipFile, destination: unzipDir, overwrite: true, password: nil as String?, progress: nil)
+            try? Zip.unzipFile(zipFile, destination: unzipDir, overwrite: true, password: nil, progress: nil)
             print("✅ 解压测试成功")
             
             // 清理
-            try fileManager.removeItem(at: tempDir)
+            try? fileManager.removeItem(at: tempDir)
             print("🧹 测试完成，已清理临时文件")
             
         } catch {

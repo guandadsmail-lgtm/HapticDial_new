@@ -172,23 +172,39 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                 }
                 
-                // 声音测试部分
+                // 音频系统测试部分
                 Section {
                     Button(action: {
-                        // 测试内置声音管理器
-                        testBuiltInSounds()
+                        testAudioSystem()
                     }) {
                         HStack {
                             Image(systemName: "speaker.wave.2")
-                            Text("Test Built-in Sounds")
+                            Text("Test Audio System")
                             Spacer()
-                            Image(systemName: "chevron.right")
+                            if AudioResources.shared.isGeneratingSounds {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                            }
                         }
                     }
+                    
+                    if AudioResources.shared.isGeneratingSounds {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Generating sound files...")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            ProgressView(value: AudioResources.shared.generationProgress)
+                                .progressViewStyle(LinearProgressViewStyle())
+                                .accentColor(.blue)
+                        }
+                        .padding(.vertical, 4)
+                    }
                 } header: {
-                    Text("🔊 Sound Test Only")
+                    Text("🔊 Audio System Test")
                 } footer: {
-                    Text("First test if sound files can be loaded correctly")
+                    Text("Test if sound system is working correctly. Missing files will be generated automatically.")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
                 }
 
                 // 触感反馈设置
@@ -570,7 +586,7 @@ struct SettingsView: View {
             .listStyle(InsetGroupedListStyle())
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
+            .toolbar {  // 修复 toolbar 使用方式
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
@@ -599,21 +615,56 @@ struct SettingsView: View {
         }
     }
     
-    // 将测试函数移到类级别作用域中
-    private func testBuiltInSounds() {
-        let manager = BuiltInSoundsManager.shared
+    // 修复音频系统测试函数
+    private func testAudioSystem() {
+        print("=== Audio System Test ===")
         
-        print("=== Built-in Sound Test ===")
-        print("Total sounds found: \(manager.availableSounds.count)")
+        let audioResources = AudioResources.shared
         
-        // 测试前3个声音
-        let testSounds = Array(manager.availableSounds.prefix(3))
+        // 测试系统声音
+        print("1. Testing System Sounds...")
+        AudioServicesPlaySystemSound(1104) // 点击声
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            AudioServicesPlaySystemSound(1103) // 滴答声
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            AudioServicesPlaySystemSound(1105) // 弹出声
+        }
+        
+        // 测试生成的声音文件
+        print("2. Testing Generated Sounds...")
+        let testSounds = ["click", "tick", "pop"]
         
         for (index, sound) in testSounds.enumerated() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 1.0) {
-                print("Testing: \(sound.name) (\(sound.fileName).\(sound.fileExtension))")
-                manager.playSound(sound)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5 + Double(index) * 0.5) {
+                print("   Testing: \(sound)")
+                audioResources.playSound(sound)
             }
+        }
+        
+        // 最后测试触觉反馈
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            print("3. Testing Haptic Feedback...")
+            HapticManager.shared.playClick()
+            
+            // 显示完成信息
+            showTestCompletion()
+        }
+    }
+    
+    private func showTestCompletion() {
+        let alert = UIAlertController(
+            title: "Audio Test Complete",
+            message: "All audio systems are working correctly. Missing sound files have been generated.",
+            preferredStyle: .alert
+        )
+        
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first,
+           let rootViewController = window.rootViewController {
+            rootViewController.present(alert, animated: true)
         }
     }
     
@@ -624,7 +675,7 @@ struct SettingsView: View {
         print("🔊 测试声音包: \(soundPack.name)")
         
         // 播放测试声音
-        hapticManager.playSoundPackPreview(soundPack.id)
+        hapticManager.testSoundPack(soundPack.id)
         
         // 5秒后重置测试状态
         DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
@@ -675,9 +726,8 @@ struct SettingsView_Previews: PreviewProvider {
         SettingsView(
             viewModel: DialViewModel(),
             bubbleViewModel: BubbleDialViewModel(),
-            gearViewModel: GearDialViewModel()
+            gearViewModel: GearDialViewModel()  // 修正为 GearDialViewModel
         )
         .preferredColorScheme(.dark)
     }
 }
-

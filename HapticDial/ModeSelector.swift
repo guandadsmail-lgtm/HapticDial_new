@@ -114,9 +114,12 @@ struct ModeSelector: View {
                                 .frame(width: 24, height: 24)
                                 
                                 // 文字 - 使用更合适的字体和颜色
-                                Text(mode.displayName)
+                                // 先计算颜色，避免在三元运算符中嵌套复杂的表达式
+                                let textColor: Color = selectedMode == mode ? .white.opacity(0.95) : .white.opacity(0.7)
+                                
+                                Text(mode == .ratchet ? "RATCHET" : "APERTURE")
                                     .font(.system(size: 14, weight: .medium, design: .rounded))
-                                    .foregroundColor(selectedMode == mode ? .white.opacity(0.95) : .white.opacity(0.7))
+                                    .foregroundColor(textColor)
                                     .tracking(0.5)
                             }
                             .padding(.vertical, 12)

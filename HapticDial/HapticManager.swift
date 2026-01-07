@@ -1,14 +1,20 @@
-// Core/HapticManager.swift - 完整修复版
+// Core/HapticManager.swift - 修复版
 import CoreHaptics
 import AVFoundation
 import Combine
 import AudioToolbox
 import CoreGraphics
 
+// MARK: - DialMode 枚举（放在文件顶部，避免重复定义）
+public enum DialMode: String, CaseIterable {
+    case ratchet
+    case aperture
+}
+
 class HapticManager: NSObject, ObservableObject {
     static let shared = HapticManager()
     
-    // 移除原有的声音模式相关属性，使用统一音效管理器
+    // 使用统一音效管理器
     private let unifiedSoundManager = UnifiedSoundManager.shared
     
     // 保留原有属性
@@ -23,7 +29,7 @@ class HapticManager: NSObject, ObservableObject {
     @Published var volume: Float = 0.5
     @Published var hapticIntensity: Float = 0.7
     
-    // 自定义触感模式（保留）
+    // 自定义触感模式
     @Published var customHapticMode: CustomHapticMode = .default
     
     // UserDefaults
@@ -33,10 +39,10 @@ class HapticManager: NSObject, ObservableObject {
     private let hapticModeKey = "custom_haptic_mode"
     
     // 系统声音 ID（保留用于回退）
-    private let ratchetSoundID: SystemSoundID = 1104  // 轻微点击声
-    private let apertureSoundID: SystemSoundID = 1103  // 更柔和的点击声
+    private let ratchetSoundID: SystemSoundID = 1104
+    private let apertureSoundID: SystemSoundID = 1103
     
-    // 触感模式枚举（保留）
+    // 触感模式枚举
     public enum CustomHapticMode: String, CaseIterable {
         case `default` = "Default"
         case lightClick = "Light Click"
@@ -84,7 +90,6 @@ class HapticManager: NSObject, ObservableObject {
     private override init() {
         super.init()
         
-        // 从UserDefaults加载设置
         loadSettings()
         prepareHaptics()
         setupAudioSession()
@@ -154,7 +159,6 @@ class HapticManager: NSObject, ObservableObject {
     func playClick(velocity: Double = 1.0) {
         guard isEnabled, isEngineStarted else { return }
         
-        // 根据自定义模式选择触感
         let floatVelocity = Float(velocity)
         
         switch customHapticMode {
@@ -182,7 +186,6 @@ class HapticManager: NSObject, ObservableObject {
             playCustomPattern(.wobble, velocity: floatVelocity)
         }
         
-        // 播放对应的声音（使用统一音效管理器）
         playSoundForCurrentSelection()
     }
     
@@ -224,16 +227,14 @@ class HapticManager: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - 声音播放（使用统一音效管理器）
+    // MARK: - 声音播放
     
     private func playSoundForCurrentSelection() {
         guard volume > 0 else { return }
         
-        // 使用统一音效管理器播放选中的音效
         if let selectedSound = unifiedSoundManager.selectedSound {
             playUnifiedSound(selectedSound)
         } else {
-            // 如果没有选中的音效，播放回退声音
             playFallbackSound()
         }
     }
@@ -244,7 +245,6 @@ class HapticManager: NSObject, ObservableObject {
         switch soundOption.type {
         case .system:
             if let soundID = soundOption.systemSoundID {
-                // 播放系统声音
                 AudioServicesPlaySystemSound(soundID)
             } else {
                 // 静音模式
@@ -254,49 +254,67 @@ class HapticManager: NSObject, ObservableObject {
             if let soundFile = soundOption.soundFile {
                 playCustomAudioFile(soundFile)
             } else {
-                // 如果自定义音效文件为空，回退到系统声音
                 playFallbackSound()
             }
         }
     }
     
     private func playCustomAudioFile(_ soundFile: String) {
-        // 从声音包中查找并播放音效
-        for soundPack in SoundPackManager.shared.installedSoundPacks {
+        // 1. 首先尝试从声音包中查找
+        let soundPackManager = SoundPackManager.shared
+        for soundPack in soundPackManager.installedSoundPacks {
             if let soundFiles = soundPack.soundFiles,
                soundFiles.contains(soundFile),
-               let soundURL = SoundPackManager.shared.getSoundFileURL(forSoundPack: soundPack.id, soundName: soundFile.replacingOccurrences(of: ".caf", with: "")) {
+               let soundURL = soundPackManager.getSoundFileURL(forSoundPack: soundPack.id, soundName: soundFile.replacingOccurrences(of: ".caf", with: "")) {
                 
-                do {
-                    let player: AVAudioPlayer
-                    if let existingPlayer = customSoundPlayers[soundURL.absoluteString] {
-                        player = existingPlayer
-                    } else {
-                        player = try AVAudioPlayer(contentsOf: soundURL)
-                        player.prepareToPlay()
-                        customSoundPlayers[soundURL.absoluteString] = player
-                    }
-                    
-                    player.volume = volume
-                    player.currentTime = 0
-                    player.play()
-                    
-                } catch {
-                    print("❌ 播放自定义音频失败: \(error)")
-                    // 回退到系统声音
-                    playFallbackSound()
-                }
+                playAudioFile(at: soundURL)
                 return
             }
         }
         
-        // 如果没有找到自定义音效，回退到系统声音
-        playFallbackSound()
+        // 2. 从用户自定义音效目录中查找
+        let fileManager = FileManager.default
+        let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let userCustomSoundsURL = documentsURL.appendingPathComponent("CustomSounds")
+        let soundURL = userCustomSoundsURL.appendingPathComponent(soundFile)
+        
+        if fileManager.fileExists(atPath: soundURL.path) {
+            playAudioFile(at: soundURL)
+        } else {
+            // 3. 如果都没找到，回退到系统声音
+            playFallbackSound()
+        }
+    }
+    
+    private func playAudioFile(at url: URL) {
+        do {
+            let player: AVAudioPlayer
+            if let existingPlayer = customSoundPlayers[url.absoluteString] {
+                player = existingPlayer
+            } else {
+                player = try AVAudioPlayer(contentsOf: url)
+                player.prepareToPlay()
+                customSoundPlayers[url.absoluteString] = player
+            }
+            
+            player.volume = volume
+            player.currentTime = 0
+            player.play()
+            
+        } catch {
+            print("❌ 播放音频失败: \(error)")
+            playFallbackSound()
+        }
     }
     
     private func playFallbackSound() {
-        // 回退到系统默认声音
-        let soundID = currentMode == .ratchet ? ratchetSoundID : apertureSoundID
+        let soundID: SystemSoundID
+        switch currentMode {
+        case .ratchet:
+            soundID = ratchetSoundID
+        case .aperture:
+            soundID = apertureSoundID
+        }
         AudioServicesPlaySystemSound(soundID)
     }
     
@@ -444,7 +462,7 @@ class HapticManager: NSObject, ObservableObject {
         return events
     }
     
-    // MARK: - 获取当前音效信息（用于界面显示）
+    // MARK: - 获取当前音效信息
     
     func getCurrentSoundName() -> String {
         return unifiedSoundManager.getCurrentSoundName()
@@ -474,7 +492,7 @@ class HapticManager: NSObject, ObservableObject {
         defaults.synchronize()
     }
     
-    // MARK: - 测试方法（移除声音模式测试）
+    // MARK: - 测试方法
     
     func testHapticMode(_ mode: CustomHapticMode) {
         switch mode {
@@ -562,14 +580,21 @@ class HapticManager: NSObject, ObservableObject {
     func cleanup() {
         customSoundPlayers.removeAll()
         
-        // 使用try? 安全地调用stop方法
-        try? engine?.stop()
+        // 停止并清理触觉引擎
+        if let engine = engine {
+            do {
+                try engine.stop()
+            } catch {
+                print("停止触觉引擎失败: \(error)")
+            }
+        }
         
         engine = nil
         isEngineStarted = false
         
         print("🧹 HapticManager 清理完成")
     }
+    
     deinit {
         cleanup()
     }

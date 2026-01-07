@@ -9,12 +9,13 @@ struct ContentView: View {
     @StateObject private var crackManager = CrackManager.shared
     @StateObject private var effectManager = EffectManager.shared
     @State private var showSettings = false
+    @State private var showSoundOptions = false
     
     var body: some View {
         GeometryReader { geometry in
             let isLandscape = geometry.size.width > geometry.size.height
             let screenHeight = geometry.size.height
-            let isSmallScreen = screenHeight < 800 // 6.5寸屏幕高度约为844pt
+            let isSmallScreen = screenHeight < 800
             
             // 根据屏幕方向和大小计算垂直间距
             let verticalPadding: CGFloat = isSmallScreen ? 20 : (isLandscape ? 20 : 40)
@@ -42,10 +43,11 @@ struct ContentView: View {
                         HStack {
                             Image(systemName: effectManager.currentEffectIcon)
                                 .font(.system(size: 14))
+                                .foregroundColor(.white)
                             Text("Effect Mode: \(effectManager.currentEffectName)")
                                 .font(.system(size: 14, weight: .medium, design: .rounded))
+                                .foregroundColor(.white)
                         }
-                        .foregroundColor(.white)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
                         .background(
@@ -65,12 +67,12 @@ struct ContentView: View {
                 }
                 
                 if isLandscape {
-                    // 横屏布局：主转盘在中间，小转盘在两侧
-                    HStack(spacing: isSmallScreen ? 10 : 20) { // 小屏幕减少间距
+                    // 横屏布局：两侧小转盘，中间主转盘，主转盘下方是缩小的音效选择器
+                    HStack(spacing: isSmallScreen ? 10 : 20) {
                         // 左侧：气泡转盘
                         VStack {
                             BubbleDialViewWrapper(viewModel: bubbleViewModel)
-                                .scaleEffect(scaleFactor) // 小屏幕缩放
+                                .scaleEffect(scaleFactor)
                                 .frame(width: 120 * scaleFactor, height: 120 * scaleFactor)
                                 .padding(.bottom, isSmallScreen ? 4 : 8)
                             
@@ -83,21 +85,16 @@ struct ContentView: View {
                         
                         Spacer()
                         
-                        // 主转盘区域
+                        // 中间：主转盘 + 缩小的音效选择器
                         VStack(spacing: 0) {
-                            // 模式名称和图标
-                            HStack(spacing: 8) {
-                                Image(systemName: viewModel.currentMode == .ratchet ? "gear" : "camera.aperture")
-                                    .font(.system(size: isSmallScreen ? 16 : 18))
-                                    .foregroundColor(.white.opacity(0.9))
-                                
-                                Text(viewModel.currentMode.displayName)
-                                    .font(.system(size: isSmallScreen ? 20 : 24, weight: .medium, design: .rounded))
-                                    .foregroundColor(.white)
-                            }
-                            .padding(.bottom, isSmallScreen ? 10 : 25)
+                            // 标题
+                            Text("HAPTIC DIAL")
+                                .font(.system(size: isSmallScreen ? 12 : 14, weight: .medium, design: .rounded))
+                                .foregroundColor(.white.opacity(0.6))
+                                .tracking(2)
+                                .padding(.bottom, isSmallScreen ? 8 : 15)
                             
-                            // 主转盘 - 小屏幕缩放
+                            // 主转盘
                             DialViewRedesigned(viewModel: viewModel)
                                 .scaleEffect(scaleFactor)
                                 .frame(width: 320 * scaleFactor, height: 320 * scaleFactor)
@@ -105,17 +102,18 @@ struct ContentView: View {
                             
                             Spacer(minLength: isSmallScreen ? 5 : 10)
                             
-                            // 模式描述
-                            Text(viewModel.currentMode == .ratchet ? "Mechanical click every 12°" : "Smooth detent every 22.5°")
-                                .font(.system(size: isSmallScreen ? 11 : 13, weight: .regular, design: .rounded))
-                                .foregroundColor(.white.opacity(0.5))
-                                .padding(.top, isSmallScreen ? 10 : 20)
-                                .padding(.bottom, isSmallScreen ? 10 : 30)
-                            
-                            // 模式选择器 - 小屏幕调整宽度
-                            ModeSelector(selectedMode: $viewModel.currentMode,
-                                       width: min(350, geometry.size.width * 0.8))
-                                .padding(.horizontal, isSmallScreen ? 10 : 15)
+                            // 音效选择器（横屏时缩小并水平居中）
+                            HorizontalSoundPicker(
+                                onAddSound: {
+                                    showSoundOptions = true
+                                },
+                                scaleFactor: 0.7,
+                                isLandscape: true
+                            )
+                            .frame(height: 60)
+                            .padding(.horizontal, 20)
+                            .frame(width: 320 * scaleFactor)
+                            .padding(.bottom, isSmallScreen ? 10 : 15)
                         }
                         .frame(maxHeight: .infinity)
                         
@@ -124,7 +122,7 @@ struct ContentView: View {
                         // 右侧：齿轮转盘
                         VStack {
                             GearDialViewWrapper(viewModel: gearViewModel)
-                                .scaleEffect(scaleFactor) // 小屏幕缩放
+                                .scaleEffect(scaleFactor)
                                 .frame(width: 120 * scaleFactor, height: 120 * scaleFactor)
                                 .padding(.bottom, isSmallScreen ? 4 : 8)
                             
@@ -138,62 +136,57 @@ struct ContentView: View {
                     .padding(.horizontal, isSmallScreen ? 15 : 30)
                     .frame(maxHeight: .infinity)
                 } else {
-                    // 竖屏布局 - 使用ScrollView确保内容完整显示
-                    ScrollView {
-                        VStack(spacing: 0) {
-                            // 标题 - 小屏幕减少顶部间距
-                            Text("HAPTIC DIAL")
-                                .font(.system(size: 14, weight: .medium, design: .rounded))
-                                .foregroundColor(.white.opacity(0.6))
-                                .tracking(2)
-                                .padding(.top, verticalPadding)
+                    // 竖屏布局：上-主转盘，中-两个小转盘，下-音效选择器
+                    VStack(spacing: 0) {
+                        // 标题
+                        Text("HAPTIC DIAL")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundColor(.white.opacity(0.6))
+                            .tracking(2)
+                            .padding(.top, verticalPadding)
+                        
+                        // 当前效果模式显示
+                        HStack(spacing: 8) {
+                            Image(systemName: effectManager.currentEffectIcon)
+                                .font(.system(size: 12))
+                                .foregroundColor(effectManager.currentEffectMode == "fireworks" ?
+                                               Color(red: 1.0, green: 0.6, blue: 0.2) :
+                                               Color(red: 0.2, green: 0.8, blue: 1.0))
                             
-                            // 当前效果模式显示
-                            HStack(spacing: 8) {
-                                Image(systemName: effectManager.currentEffectIcon)
-                                    .font(.system(size: 12))
-                                    .foregroundColor(effectManager.currentEffectMode == "fireworks" ?
-                                                   Color(red: 1.0, green: 0.6, blue: 0.2) :
-                                                   Color(red: 0.2, green: 0.8, blue: 1.0))
-                                
-                                Text("Effect: \(effectManager.currentEffectName)")
-                                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                                    .foregroundColor(.white.opacity(0.7))
-                            }
-                            .padding(.top, 8)
+                            Text("Effect: \(effectManager.currentEffectName)")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundColor(.white.opacity(0.7))
+                        }
+                        .padding(.top, 8)
+                        
+                        Spacer(minLength: isSmallScreen ? 15 : 20)
+                        
+                        // 角度显示标题
+                        Text("ROTATION ANGLE")
+                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                            .foregroundColor(.white.opacity(0.8))
+                            .padding(.bottom, isSmallScreen ? 15 : 20)
+                        
+                        // 上：主转盘
+                        DialViewRedesigned(viewModel: viewModel)
+                            .scaleEffect(isSmallScreen ? 0.9 : 1.0)
+                            .padding(.vertical, isSmallScreen ? 0 : 10)
+                        
+                        Spacer(minLength: isSmallScreen ? 20 : 30)
+                        
+                        // 中：两个小转盘（水平排列）
+                        VStack(spacing: 12) {
+                            Text("MINI DIALS")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundColor(.white.opacity(0.7))
+                                .tracking(1)
                             
-                            Spacer(minLength: isSmallScreen ? 20 : 30)
-                            
-                            // 模式名称和图标
-                            HStack(spacing: 8) {
-                                Image(systemName: viewModel.currentMode == .ratchet ? "gear" : "camera.aperture")
-                                    .font(.system(size: 18))
-                                    .foregroundColor(.white.opacity(0.9))
-                                
-                                Text(viewModel.currentMode.displayName)
-                                    .font(.system(size: 24, weight: .medium, design: .rounded))
-                                    .foregroundColor(.white)
-                            }
-                            .padding(.bottom, isSmallScreen ? 25 : 40)
-                            
-                            // 主转盘 - 小屏幕略微缩小
-                            DialViewRedesigned(viewModel: viewModel)
-                                .scaleEffect(isSmallScreen ? 0.9 : 1.0)
-                                .padding(.vertical, isSmallScreen ? 0 : 10)
-                            
-                            Spacer(minLength: isSmallScreen ? 15 : 20)
-                            
-                            // 模式描述
-                            Text(viewModel.currentMode == .ratchet ? "Mechanical click every 12°" : "Smooth detent every 22.5°")
-                                .font(.system(size: 13, weight: .regular, design: .rounded))
-                                .foregroundColor(.white.opacity(0.5))
-                                .padding(.top, isSmallScreen ? 25 : 60)
-                                .padding(.bottom, isSmallScreen ? 20 : 30)
-                            
-                            // 小转盘区域 - 小屏幕减少间距
-                            HStack(spacing: isSmallScreen ? 25 : 40) {
+                            HStack(spacing: isSmallScreen ? 40 : 60) {
                                 VStack(spacing: 8) {
                                     BubbleDialViewWrapper(viewModel: bubbleViewModel)
+                                        .scaleEffect(0.7)
+                                        .frame(width: 90, height: 90)
+                                    
                                     Text("BUBBLE")
                                         .font(.system(size: 12, weight: .medium, design: .rounded))
                                         .foregroundColor(.white.opacity(0.5))
@@ -202,41 +195,56 @@ struct ContentView: View {
                                 
                                 VStack(spacing: 8) {
                                     GearDialViewWrapper(viewModel: gearViewModel)
+                                        .scaleEffect(0.7)
+                                        .frame(width: 90, height: 90)
+                                    
                                     Text("GEAR")
                                         .font(.system(size: 12, weight: .medium, design: .rounded))
                                         .foregroundColor(.white.opacity(0.5))
                                         .tracking(1)
                                 }
                             }
-                            .padding(.bottom, isSmallScreen ? 20 : 40)
-                            
-                            // 模式选择器 - 增加宽度，减少底部间距
-                            ModeSelector(selectedMode: $viewModel.currentMode, width: min(400, geometry.size.width * 0.9))
-                                .padding(.horizontal, 20)
-                                .padding(.bottom, isSmallScreen ? 20 : 25)
+                            .padding(.vertical, 10)
                         }
-                        .frame(minHeight: screenHeight)
+                        .padding(.horizontal, 20)
+                        
+                        Spacer(minLength: isSmallScreen ? 20 : 30)
+                        
+                        // 下：音效选择器
+                        VStack(spacing: 8) {
+                            HorizontalSoundPicker(onAddSound: {
+                                showSoundOptions = true
+                            })
+                            .frame(height: 85)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, isSmallScreen ? 25 : 35)
+                        
+                        Spacer()
                     }
-                    .scrollIndicators(.hidden) // 隐藏滚动条
+                    .frame(maxHeight: .infinity)
                 }
                 
-                // 设置按钮
+                // 右上角按钮区域
                 VStack {
                     HStack {
                         Spacer()
-                        Button(action: { showSettings.toggle() }) {
-                            Image(systemName: "slider.horizontal.3")
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundColor(.white.opacity(0.8))
-                                .frame(width: 44, height: 44)
-                                .background(
-                                    .ultraThinMaterial,
-                                    in: Circle()
-                                )
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                                )
+                        HStack(spacing: 8) {
+                            // 设置按钮
+                            Button(action: { showSettings.toggle() }) {
+                                Image(systemName: "slider.horizontal.3")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.8))
+                                    .frame(width: 44, height: 44)
+                                    .background(
+                                        .ultraThinMaterial,
+                                        in: Circle()
+                                    )
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                    )
+                            }
                         }
                         .padding(.top, isSmallScreen ? 8 : 12)
                         .padding(.trailing, isSmallScreen ? 12 : 16)
@@ -261,8 +269,6 @@ struct ContentView: View {
                         .allowsHitTesting(false)
                         .transition(.opacity)
                 }
-                
-
             }
         }
         .sheet(isPresented: $showSettings) {
@@ -273,6 +279,15 @@ struct ContentView: View {
             )
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showSoundOptions) {
+            NavigationView {
+                SoundSelectionView()
+                    .navigationBarTitle("Select Sound", displayMode: .inline)
+                    .navigationBarItems(trailing: Button("Done") {
+                        showSoundOptions = false
+                    })
+            }
         }
     }
 }

@@ -1,4 +1,4 @@
-// Views/SettingsView.swift - 完整修复版
+// Views/SettingsView.swift
 import SwiftUI
 import Combine
 import AVFoundation
@@ -8,9 +8,9 @@ struct SettingsView: View {
     @ObservedObject var viewModel: DialViewModel
     @ObservedObject var bubbleViewModel: BubbleDialViewModel
     @ObservedObject var gearViewModel: GearDialViewModel
-    @ObservedObject private var hapticManager = HapticManager.shared
-    @ObservedObject private var effectManager = EffectManager.shared
-    @ObservedObject private var unifiedSoundManager = UnifiedSoundManager.shared
+    @StateObject private var hapticManager = HapticManager.shared
+    @StateObject private var effectManager = EffectManager.shared
+    @StateObject private var unifiedSoundManager = UnifiedSoundManager.shared
     @StateObject private var smartEffectsManager = SmartEffectsManager.shared
     
     // 颜色定义
@@ -278,10 +278,10 @@ struct SettingsView: View {
                         // 当前音效显示
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(hapticManager.getCurrentSoundName())
+                                Text(unifiedSoundManager.getCurrentSoundName())
                                     .font(.system(size: 14, weight: .medium))
                                 
-                                Text(hapticManager.isSoundEnabled() ? "Sound enabled" : "Sound disabled")
+                                Text(unifiedSoundManager.isSoundEnabled() ? "Sound enabled" : "Sound disabled")
                                     .font(.system(size: 12))
                                     .foregroundColor(.secondary)
                             }
@@ -502,4 +502,3 @@ struct SettingsView_Previews: PreviewProvider {
         .preferredColorScheme(.dark)
     }
 }
-

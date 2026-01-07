@@ -1,299 +1,383 @@
-// Core/UnifiedSoundManager.swift
 import Foundation
-import AVFoundation
+import AudioToolbox
 import Combine
 
 class UnifiedSoundManager: ObservableObject {
     static let shared = UnifiedSoundManager()
     
-    @Published var availableSounds: [SoundOption] = []
-    @Published var selectedSound: SoundOption?
-    @Published var categories: [String] = []
-    
-    // 音效选项数据结构
-    struct SoundOption: Identifiable, Hashable {
-        let id: String
-        let name: String
-        let category: String
-        let type: SoundType
-        let soundFile: String?
-        let systemSoundID: SystemSoundID?
-        let description: String
-        
-        var displayName: String {
-            if type == .system {
-                return "🔊 \(name)"
-            } else {
-                return "📦 \(name)"
-            }
-        }
-    }
-    
-    enum SoundType {
+    // 音效类型
+    enum SoundType: String, Codable {
         case system
         case custom
     }
     
-    private let soundPackManager = SoundPackManager.shared
-    private var cancellables = Set<AnyCancellable>()
-    
-    private init() {
-        loadAvailableSounds()
-        setupObservers()
+    // 音效选项 - 需要遵循 Codable
+    struct SoundOption: Identifiable, Equatable, Codable {
+        let id: String
+        let name: String
+        let type: SoundType
+        let soundFile: String?
+        let systemSoundID: UInt32?
+        var isUserCustom: Bool = false
+        
+        // 计算属性，用于 UI 显示
+        var displayName: String { name }
+        var description: String {
+            type == .system ? "System sound effect" : "Custom sound effect"
+        }
+        var category: String {
+            type == .system ? "System" : "Custom"
+        }
+        
+        // 获取首字母
+        var firstLetter: String {
+            if name.isEmpty { return "?" }
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            return String(trimmed.prefix(1)).uppercased()
+        }
+        
+        static func == (lhs: SoundOption, rhs: SoundOption) -> Bool {
+            return lhs.id == rhs.id
+        }
     }
     
-    // MARK: - 声音加载与刷新
+    // 系统默认音效选项 - 改为英文名称
+    private let systemSoundOptions: [SoundOption] = [
+        SoundOption(id: "system_default", name: "Default", type: .system, soundFile: nil, systemSoundID: 1104),
+        SoundOption(id: "system_tick", name: "Tick", type: .system, soundFile: nil, systemSoundID: 1103),
+        SoundOption(id: "system_click", name: "Click", type: .system, soundFile: nil, systemSoundID: 1100),
+        SoundOption(id: "system_beep", name: "Beep", type: .system, soundFile: nil, systemSoundID: 1110),
+        SoundOption(id: "system_bell", name: "Bell", type: .system, soundFile: nil, systemSoundID: 1005),
+        SoundOption(id: "none", name: "Mute", type: .system, soundFile: nil, systemSoundID: nil)
+    ]
     
-    private func loadAvailableSounds() {
-        // 清空现有音效
-        availableSounds.removeAll()
+    // 用户自定义音效
+    @Published var userCustomSounds: [SoundOption] = []
+    
+    // 选中的音效
+    @Published var selectedSound: SoundOption? {
+        didSet {
+            if let sound = selectedSound {
+                saveSelectedSound(sound)
+            }
+        }
+    }
+    
+    // MARK: - 公开的属性
+    
+    var availableSounds: [SoundOption] {
+        var allSounds = systemSoundOptions
+        allSounds.append(contentsOf: userCustomSounds)
+        return allSounds
+    }
+    
+    var categories: [String] {
+        var categories = ["All"]
+        categories.append("System")
+        if !userCustomSounds.isEmpty {
+            categories.append("Custom")
+        }
+        return categories
+    }
+    
+    // MARK: - 用户自定义音效目录
+    private var userCustomSoundsURL: URL {
+        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        return documentsURL.appendingPathComponent("CustomSounds")
+    }
+    
+    // UserDefaults 键
+    private let selectedSoundKey = "unified_selected_sound"
+    private let userCustomSoundsKey = "user_custom_sounds_list"
+    
+    private init() {
+        loadSelectedSound()
+        loadUserCustomSounds()
+        ensureCustomSoundsDirectory()
+    }
+    
+    // MARK: - 音效选择
+    
+    func selectSound(_ sound: SoundOption) {
+        selectedSound = sound
+    }
+    
+    private func loadSelectedSound() {
+        if let savedData = UserDefaults.standard.data(forKey: selectedSoundKey),
+           let decoded = try? JSONDecoder().decode(SoundOption.self, from: savedData) {
+            selectedSound = decoded
+        } else {
+            selectedSound = systemSoundOptions.first
+        }
+    }
+    
+    private func saveSelectedSound(_ sound: SoundOption) {
+        if let encoded = try? JSONEncoder().encode(sound) {
+            UserDefaults.standard.set(encoded, forKey: selectedSoundKey)
+        }
+    }
+    
+    // MARK: - 用户自定义音效管理
+    
+    private func ensureCustomSoundsDirectory() {
+        let fileManager = FileManager.default
+        let customSoundsDir = userCustomSoundsURL
         
-        // 添加系统音效
-        let systemSounds: [SoundOption] = [
-            SoundOption(
-                id: "system_default",
-                name: "Default",
-                category: "System",
-                type: .system,
-                soundFile: nil,
-                systemSoundID: 1104,
-                description: "Standard system click sound"
-            ),
-            SoundOption(
-                id: "system_mechanical",
-                name: "Mechanical",
-                category: "System",
-                type: .system,
-                soundFile: nil,
-                systemSoundID: 1103,
-                description: "Mechanical gear sounds"
-            ),
-            SoundOption(
-                id: "system_digital",
-                name: "Digital",
-                category: "System",
-                type: .system,
-                soundFile: nil,
-                systemSoundID: 1057,
-                description: "Digital beeps and tones"
-            ),
-            SoundOption(
-                id: "system_natural",
-                name: "Natural",
-                category: "System",
-                type: .system,
-                soundFile: nil,
-                systemSoundID: 1105,
-                description: "Water drops and natural sounds"
-            ),
-            SoundOption(
-                id: "system_futuristic",
-                name: "Futuristic",
-                category: "System",
-                type: .system,
-                soundFile: nil,
-                systemSoundID: 4095,
-                description: "Sci-fi futuristic sounds"
-            ),
-            SoundOption(
-                id: "system_silent",
-                name: "Silent",
-                category: "System",
-                type: .system,
-                soundFile: nil,
-                systemSoundID: nil,
-                description: "No sound, haptics only"
-            )
-        ]
+        if !fileManager.fileExists(atPath: customSoundsDir.path) {
+            do {
+                try fileManager.createDirectory(at: customSoundsDir, withIntermediateDirectories: true, attributes: nil)
+                print("✅ Custom sounds directory created")
+            } catch {
+                print("❌ Failed to create custom sounds directory: \(error)")
+            }
+        }
+    }
+    
+    func importCustomSound(from url: URL) throws {
+        let fileManager = FileManager.default
         
-        availableSounds.append(contentsOf: systemSounds)
+        // 检查文件扩展名
+        guard url.pathExtension.lowercased() == "caf" else {
+            throw ImportError.invalidFileFormat
+        }
         
-        // 添加自定义音效包
-        for soundPack in soundPackManager.installedSoundPacks {
-            if let soundFiles = soundPack.soundFiles {
-                for soundFile in soundFiles.prefix(5) { // 每个包最多显示5个音效
-                    let soundName = soundFile.replacingOccurrences(of: ".caf", with: "")
-                        .replacingOccurrences(of: ".wav", with: "")
-                        .replacingOccurrences(of: ".mp3", with: "")
-                    
-                    let soundOption = SoundOption(
-                        id: "\(soundPack.id)_\(soundName)",
-                        name: "\(soundPack.name) - \(soundName.capitalized)",
-                        category: "Custom Packs",
+        // 检查文件大小（限制为5MB）
+        let attributes = try fileManager.attributesOfItem(atPath: url.path)
+        let fileSize = attributes[.size] as? UInt64 ?? 0
+        guard fileSize < 5 * 1024 * 1024 else {
+            throw ImportError.fileTooLarge
+        }
+        
+        // 获取文件名
+        let originalName = url.lastPathComponent
+        let fileName = generateUniqueFileName(for: originalName)
+        let destinationURL = userCustomSoundsURL.appendingPathComponent(fileName)
+        
+        // 复制文件到应用目录
+        try fileManager.copyItem(at: url, to: destinationURL)
+        
+        // 获取音效名称（移除扩展名）
+        let soundName = originalName.replacingOccurrences(of: ".caf", with: "")
+            .replacingOccurrences(of: ".wav", with: "")
+            .replacingOccurrences(of: ".mp3", with: "")
+            .replacingOccurrences(of: ".m4a", with: "")
+            .replacingOccurrences(of: "_", with: " ")
+            .capitalized
+        
+        // 创建音效选项
+        let soundOption = SoundOption(
+            id: "custom_\(UUID().uuidString)",
+            name: soundName,
+            type: .custom,
+            soundFile: fileName,
+            systemSoundID: nil,
+            isUserCustom: true
+        )
+        
+        // 添加到列表
+        userCustomSounds.append(soundOption)
+        saveUserCustomSoundsList()
+        
+        print("✅ Successfully imported custom sound: \(soundName)")
+        
+        // 自动选择新导入的音效
+        selectedSound = soundOption
+    }
+    
+    private func loadUserCustomSounds() {
+        let fileManager = FileManager.default
+        
+        // 确保目录存在
+        if !fileManager.fileExists(atPath: userCustomSoundsURL.path) {
+            return
+        }
+        
+        // 加载保存的列表
+        if let savedData = UserDefaults.standard.array(forKey: userCustomSoundsKey) as? [[String: String]] {
+            userCustomSounds = savedData.compactMap { dict in
+                guard let id = dict["id"],
+                      let name = dict["name"],
+                      let soundFile = dict["soundFile"] else {
+                    return nil
+                }
+                
+                // 检查文件是否存在
+                let fileURL = userCustomSoundsURL.appendingPathComponent(soundFile)
+                if fileManager.fileExists(atPath: fileURL.path) {
+                    return SoundOption(
+                        id: id,
+                        name: name,
                         type: .custom,
                         soundFile: soundFile,
                         systemSoundID: nil,
-                        description: soundPack.description.isEmpty ? "Custom sound from \(soundPack.name)" : soundPack.description
+                        isUserCustom: true
                     )
-                    
-                    availableSounds.append(soundOption)
                 }
+                return nil
             }
         }
         
-        // 更新类别
-        updateCategories()
-        
-        // 加载选中的音效
-        loadSelectedSound()
-        
-        print("🎵 UnifiedSoundManager loaded \(availableSounds.count) sounds")
-    }
-    
-    // 刷新声音选项（公开方法，供其他管理器调用）
-    func refreshSoundOptions() {
-        print("🔄 UnifiedSoundManager: 刷新声音选项")
-        loadAvailableSounds()
-    }
-    
-    private func setupObservers() {
-        // 监听声音包变化
-        soundPackManager.$installedSoundPacks
-            .sink { [weak self] _ in
-                print("🔄 UnifiedSoundManager: 检测到音效包变化，重新加载声音")
-                self?.loadAvailableSounds()
+        // 扫描目录中的文件（备用方法）
+        do {
+            let files = try fileManager.contentsOfDirectory(at: userCustomSoundsURL, includingPropertiesForKeys: nil)
+            let audioFiles = files.filter { ["caf", "wav", "mp3", "m4a"].contains($0.pathExtension.lowercased()) }
+            
+            for fileURL in audioFiles {
+                let fileName = fileURL.lastPathComponent
+                
+                // 如果还没有在列表中，添加它
+                if !userCustomSounds.contains(where: { $0.soundFile == fileName }) {
+                    let soundName = fileName.replacingOccurrences(of: ".caf", with: "")
+                        .replacingOccurrences(of: ".wav", with: "")
+                        .replacingOccurrences(of: ".mp3", with: "")
+                        .replacingOccurrences(of: ".m4a", with: "")
+                        .replacingOccurrences(of: "_", with: " ")
+                        .capitalized
+                    
+                    let soundOption = SoundOption(
+                        id: "custom_\(UUID().uuidString)",
+                        name: soundName,
+                        type: .custom,
+                        soundFile: fileName,
+                        systemSoundID: nil,
+                        isUserCustom: true
+                    )
+                    userCustomSounds.append(soundOption)
+                }
             }
-            .store(in: &cancellables)
+            
+            // 保存更新后的列表
+            saveUserCustomSoundsList()
+            
+        } catch {
+            print("❌ Failed to scan user custom sounds: \(error)")
+        }
     }
     
-    private func updateCategories() {
-        let allCategories = Set(availableSounds.map { $0.category })
-        categories = ["All"] + allCategories.sorted()
+    private func saveUserCustomSoundsList() {
+        let soundData = userCustomSounds.map { sound in
+            [
+                "id": sound.id,
+                "name": sound.name,
+                "soundFile": sound.soundFile ?? ""
+            ]
+        }
+        UserDefaults.standard.set(soundData, forKey: userCustomSoundsKey)
+    }
+    
+    private func generateUniqueFileName(for originalName: String) -> String {
+        let fileManager = FileManager.default
+        
+        // 如果文件名不冲突，直接使用
+        let destinationURL = userCustomSoundsURL.appendingPathComponent(originalName)
+        if !fileManager.fileExists(atPath: destinationURL.path) {
+            return originalName
+        }
+        
+        // 如果冲突，添加时间戳
+        let nameWithoutExtension = (originalName as NSString).deletingPathExtension
+        let extensionName = (originalName as NSString).pathExtension
+        let timestamp = Date().timeIntervalSince1970
+        return "\(nameWithoutExtension)_\(Int(timestamp)).\(extensionName)"
+    }
+    
+    func deleteCustomSound(_ sound: SoundOption) {
+        guard sound.isUserCustom, let soundFile = sound.soundFile else { return }
+        
+        let fileManager = FileManager.default
+        let soundURL = userCustomSoundsURL.appendingPathComponent(soundFile)
+        
+        do {
+            // 删除文件
+            try fileManager.removeItem(at: soundURL)
+            
+            // 从列表中移除
+            userCustomSounds.removeAll { $0.id == sound.id }
+            saveUserCustomSoundsList()
+            
+            // 如果删除的是当前选中的音效，切换到默认音效
+            if selectedSound?.id == sound.id {
+                selectedSound = systemSoundOptions.first
+            }
+            
+            print("✅ Deleted custom sound: \(sound.name)")
+        } catch {
+            print("❌ Failed to delete custom sound: \(error)")
+        }
+    }
+    
+    // MARK: - 获取音效
+    
+    func getAllSounds() -> [SoundOption] {
+        return availableSounds
     }
     
     func getSounds(in category: String) -> [SoundOption] {
         if category == "All" {
             return availableSounds
+        } else if category == "System" {
+            return systemSoundOptions
+        } else if category == "Custom" {
+            return userCustomSounds
         }
-        return availableSounds.filter { $0.category == category }
+        return []
     }
     
     func searchSounds(query: String) -> [SoundOption] {
-        if query.isEmpty {
-            return availableSounds
-        }
         let lowercasedQuery = query.lowercased()
-        return availableSounds.filter {
-            $0.name.lowercased().contains(lowercasedQuery) ||
-            $0.description.lowercased().contains(lowercasedQuery) ||
-            $0.category.lowercased().contains(lowercasedQuery)
+        return availableSounds.filter { sound in
+            sound.name.lowercased().contains(lowercasedQuery) ||
+            sound.id.lowercased().contains(lowercasedQuery)
         }
     }
-    
-    // MARK: - 声音播放
-    
-    func playSound(_ sound: SoundOption) {
-        switch sound.type {
-        case .system:
-            if let soundID = sound.systemSoundID {
-                AudioServicesPlaySystemSound(soundID)
-            }
-        case .custom:
-            if let soundFile = sound.soundFile {
-                playCustomSound(soundFile)
-            }
-        }
-    }
-    
-    private func playCustomSound(_ soundFile: String) {
-        // 从声音包中查找并播放音效
-        for soundPack in soundPackManager.installedSoundPacks {
-            if let soundFiles = soundPack.soundFiles,
-               soundFiles.contains(soundFile),
-               let soundURL = soundPackManager.getSoundFileURL(forSoundPack: soundPack.id, soundName: soundFile.replacingOccurrences(of: ".caf", with: "")) {
-                
-                do {
-                    let player = try AVAudioPlayer(contentsOf: soundURL)
-                    player.prepareToPlay()
-                    player.play()
-                    print("▶️ Playing custom sound: \(soundFile)")
-                } catch {
-                    print("❌ Failed to play custom sound: \(error)")
-                }
-                return
-            }
-        }
-    }
-    
-    // MARK: - 声音选择管理
-    
-    func selectSound(_ sound: SoundOption) {
-        selectedSound = sound
-        saveSelectedSound()
-        print("✅ Selected sound: \(sound.name)")
-    }
-    
-    private func loadSelectedSound() {
-        if let soundId = UserDefaults.standard.string(forKey: "selected_sound_id") {
-            selectedSound = availableSounds.first { $0.id == soundId }
-            if selectedSound != nil {
-                print("📝 Loaded selected sound from UserDefaults: \(soundId)")
-            } else {
-                print("⚠️ Saved sound not found, using default")
-                selectDefaultSound()
-            }
-        } else {
-            selectDefaultSound()
-        }
-    }
-    
-    private func selectDefaultSound() {
-        // 默认选择系统默认音效
-        selectedSound = availableSounds.first { $0.id == "system_default" }
-        if selectedSound != nil {
-            print("📝 Selected default sound")
-            saveSelectedSound()
-        }
-    }
-    
-    private func saveSelectedSound() {
-        if let sound = selectedSound {
-            UserDefaults.standard.set(sound.id, forKey: "selected_sound_id")
-            UserDefaults.standard.synchronize()
-            print("💾 Saved sound selection: \(sound.id)")
-        } else {
-            UserDefaults.standard.removeObject(forKey: "selected_sound_id")
-            UserDefaults.standard.synchronize()
-            print("🗑️ Cleared sound selection")
-        }
-    }
-    
-    // MARK: - 实用方法
     
     func getCurrentSoundName() -> String {
         return selectedSound?.name ?? "Default"
     }
     
     func isSoundEnabled() -> Bool {
-        return selectedSound?.id != "system_silent"
+        return selectedSound?.systemSoundID != nil || selectedSound?.soundFile != nil
     }
     
-    // 检查音效是否有效
-    func validateSound(_ sound: SoundOption) -> Bool {
-        switch sound.type {
-        case .system:
-            return true
-        case .custom:
-            if let soundFile = sound.soundFile {
-                return soundPackManager.installedSoundPacks.contains { pack in
-                    pack.soundFiles?.contains(soundFile) == true
-                }
-            }
-            return false
+    func refreshSoundOptions() {
+        loadUserCustomSounds()
+        print("🔄 UnifiedSoundManager refreshed sound options")
+    }
+    
+    // MARK: - 播放音效
+    
+    func playSound(_ sound: SoundOption) {
+        if let systemSoundID = sound.systemSoundID {
+            AudioServicesPlaySystemSound(systemSoundID)
+        } else if let soundFile = sound.soundFile {
+            // 播放自定义音效文件的逻辑
+            let soundURL = userCustomSoundsURL.appendingPathComponent(soundFile)
+            var soundID: SystemSoundID = 0
+            AudioServicesCreateSystemSoundID(soundURL as CFURL, &soundID)
+            AudioServicesPlaySystemSound(soundID)
+            AudioServicesDisposeSystemSoundID(soundID)
         }
     }
     
-    // 获取当前音效的类别
-    func getCurrentSoundCategory() -> String {
-        return selectedSound?.category ?? "System"
+    // MARK: - 错误类型
+    
+    enum ImportError: LocalizedError {
+        case invalidFileFormat
+        case fileTooLarge
+        
+        var errorDescription: String? {
+            switch self {
+            case .invalidFileFormat:
+                return "Only .caf format sound files are supported"
+            case .fileTooLarge:
+                return "Sound file cannot exceed 5MB"
+            }
+        }
     }
     
-    // 重置为默认设置
-    func resetToDefaults() {
-        selectedSound = nil
-        UserDefaults.standard.removeObject(forKey: "selected_sound_id")
-        UserDefaults.standard.synchronize()
-        loadSelectedSound()
-        print("🔄 Reset sound settings to defaults")
+    // MARK: - 为 HorizontalSoundPicker 提供的公共访问方法
+    
+    var publicSystemSoundOptions: [SoundOption] {
+        return systemSoundOptions
     }
 }

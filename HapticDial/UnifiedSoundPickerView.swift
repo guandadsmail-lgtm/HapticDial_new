@@ -25,10 +25,11 @@ struct UnifiedSoundPickerView: View {
                 .background(Color(.systemGray6))
                 
                 // 类别选择器
-                if soundManager.categories.count > 1 {
+                let categories = soundManager.categories
+                if categories.count > 1 {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
-                            ForEach(soundManager.categories, id: \.self) { category in
+                            ForEach(categories, id: \.self) { category in
                                 CategoryChip(
                                     title: category,
                                     isSelected: selectedCategory == category,
@@ -52,7 +53,7 @@ struct UnifiedSoundPickerView: View {
                         EmptySoundView(searchText: searchText)
                     } else {
                         ForEach(sounds) { sound in
-                            SoundOptionRow(
+                            UnifiedSoundOptionRow(
                                 sound: sound,
                                 isSelected: soundManager.selectedSound?.id == sound.id,
                                 isPlaying: playingSound?.id == sound.id,
@@ -189,8 +190,8 @@ struct EmptySoundView: View {
     }
 }
 
-// 音效选项行组件
-struct SoundOptionRow: View {
+// 音效选项行组件（重命名以避免冲突）
+struct UnifiedSoundOptionRow: View {
     let sound: UnifiedSoundManager.SoundOption
     let isSelected: Bool
     let isPlaying: Bool
@@ -210,7 +211,7 @@ struct SoundOptionRow: View {
             .frame(width: 44, height: 44)
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(sound.displayName)
+                Text(sound.name) // 改为使用 name 而不是 displayName
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(isSelected ? .blue : .primary)
                 
@@ -256,4 +257,3 @@ struct SoundOptionRow: View {
         }
     }
 }
-

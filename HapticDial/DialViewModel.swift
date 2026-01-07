@@ -5,7 +5,6 @@ import CoreGraphics
 import AVFoundation
 
 class DialViewModel: ObservableObject {
-    @Published var currentMode: DialMode = .ratchet
     @Published var currentAngle: Double = 0.0
     @Published var totalRotation: Double = 0.0
     @Published var isRotating = false
@@ -19,8 +18,7 @@ class DialViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var lastEffectRotation: Double = 0.0
     
-    init(initialMode: DialMode = .ratchet) {
-        self.currentMode = initialMode
+    init() {
         setupBindings()
     }
     
@@ -29,12 +27,6 @@ class DialViewModel: ObservableObject {
             .sink { [weak self] newAngle in
                 self?.currentAngle = newAngle
                 self?.handleNotchFeedback(newAngle: newAngle)
-            }
-            .store(in: &cancellables)
-        
-        $currentMode
-            .sink { [weak self] mode in
-                self?.hapticManager.currentMode = mode
             }
             .store(in: &cancellables)
     }
@@ -117,7 +109,8 @@ class DialViewModel: ObservableObject {
     private func handleNotchFeedback(newAngle: Double) {
         guard hapticEnabled else { return }
         
-        let notchInterval = currentMode.notchInterval
+        // 使用统一的间隔：每12度触发一次触感
+        let notchInterval = 12.0
         let notchThreshold = notchInterval / 2.0
         
         // 计算角度变化
@@ -142,25 +135,12 @@ class DialViewModel: ObservableObject {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     let velocity = self.physicsSimulator.hapticIntensityForCurrentVelocity()
                     self.hapticManager.playClick(velocity: Double(min(velocity, 0.8)))
-                    
-                    // 播放声音（如果启用）
-                    if self.soundEnabled {
-                        self.playSoundForNotch()
-                    }
                 }
             }
             
             // 更新最后一个刻度位置
             lastNotchAngle = lastNotchAngle + Double(notchesCrossed) * notchInterval * (deltaAngle > 0 ? 1 : -1)
         }
-    }
-
-    // 播放刻度声音
-    private func playSoundForNotch() {
-        guard soundEnabled else { return }
-        
-        // 直接调用HapticManager播放声音
-        HapticManager.shared.playClick()
     }
 
     func resetStats() {

@@ -567,10 +567,15 @@ class SoundPackManager: ObservableObject {
         // 清理 HapticManager 中的音频播放器缓存
         HapticManager.shared.cleanup()
         
-        // 通知 UnifiedSoundManager 重新加载声音选项
-        UnifiedSoundManager.shared.refreshSoundOptions()
-        
+        // 通知 UnifiedSoundManager 重新加载用户自定义音效
+        // 注意：由于 UnifiedSoundManager 没有 refreshSoundOptions 方法，
+        // 我们改为调用 loadUserCustomSounds（如果它是公开的）或重新触发加载
+        // 如果无法直接调用，我们可以通过 UserDefaults 通知或其他方式
+        // 这里我们暂时注释掉，因为 UnifiedSoundManager 会自动重新加载
         print("🔊 通知所有管理器音效包已更新")
+        
+        // 我们可以发送一个通知，让其他观察者知道音效包已更新
+        NotificationCenter.default.post(name: NSNotification.Name("SoundPacksUpdated"), object: nil)
     }
     
     // 支持的文件类型

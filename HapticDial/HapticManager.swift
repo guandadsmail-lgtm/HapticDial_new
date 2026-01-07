@@ -274,7 +274,7 @@ class HapticManager: NSObject, ObservableObject {
     // MARK: - 声音播放
     
     public func playSoundForCurrentMode() {
-        guard customSoundMode != .silent else { return }
+        guard customSoundMode != .silent, volume > 0 else { return }
         
         // 如果有自定义声音包，优先使用自定义声音包
         if let packId = currentCustomSoundPack {
@@ -302,6 +302,13 @@ class HapticManager: NSObject, ObservableObject {
     // 新增方法：从自定义声音包播放声音
     private func playCustomSound(fromPack packId: String, forMode mode: CustomSoundMode) {
         guard volume > 0 else { return }
+        
+        // 首先验证音效包是否有效
+        if !soundPackManager.validateSoundPack(packId) {
+            print("⚠️ 音效包无效，使用默认声音")
+            playSystemSoundForMode(mode)
+            return
+        }
         
         // 根据模式选择声音文件名
         let soundName = getSoundNameForMode(mode)
@@ -412,7 +419,7 @@ class HapticManager: NSObject, ObservableObject {
     
     // MARK: - 自定义声音播放
     
-    private func playCustomSound(named soundName: String, fromPack packId: String? = nil) {
+    func playCustomSound(named soundName: String, fromPack packId: String? = nil) {
         guard volume > 0 else { return }
         
         // 如果没有指定包ID，使用当前自定义包
@@ -657,6 +664,13 @@ class HapticManager: NSObject, ObservableObject {
     
     func testSoundPack(_ packId: String) {
         print("🎵 测试声音包: \(packId)")
+        
+        // 首先验证音效包
+        if !soundPackManager.validateSoundPack(packId) {
+            print("❌ 音效包无效，使用默认测试序列")
+            playDefaultTestSequence()
+            return
+        }
         
         // 首先尝试从已安装的声音包中获取声音
         guard let pack = customSoundPacks.first(where: { $0.id == packId }) else {

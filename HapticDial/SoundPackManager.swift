@@ -611,16 +611,16 @@ class SoundPackManager: ObservableObject {
     // MARK: - 辅助方法
     
     func getSoundFileURL(forSoundPack packId: String, soundName: String) -> URL? {
+        // 如果是内置音效包，从Bundle中获取
+        if packId.hasPrefix("builtin_") {
+            return getBuiltInSoundURL(soundName)
+        }
+        
+        // 否则从自定义音效包中获取
         guard let pack = installedSoundPacks.first(where: { $0.id == packId }),
               let directoryURL = pack.directoryURL else {
             print("❌ 未找到声音包或目录: \(packId)")
             return nil
-        }
-        
-        // 首先尝试直接查找文件名
-        let directURL = directoryURL.appendingPathComponent(soundName)
-        if fileManager.fileExists(atPath: directURL.path) {
-            return directURL
         }
         
         // 尝试各种可能的扩展名
@@ -635,7 +635,14 @@ class SoundPackManager: ObservableObject {
         
         // 尝试在声音列表中查找
         for sound in pack.sounds {
-            if sound.name.lowercased() == soundName.lowercased() {
+            let soundNameWithoutExt = soundName.replacingOccurrences(of: ".caf", with: "")
+                .replacingOccurrences(of: ".wav", with: "")
+                .replacingOccurrences(of: ".mp3", with: "")
+                .replacingOccurrences(of: ".m4a", with: "")
+            
+            if sound.name.lowercased() == soundNameWithoutExt.lowercased() ||
+               sound.name.lowercased().contains(soundNameWithoutExt.lowercased()) ||
+               soundNameWithoutExt.lowercased().contains(sound.name.lowercased()) {
                 let fileURL = directoryURL.appendingPathComponent(sound.fileName)
                 if fileManager.fileExists(atPath: fileURL.path) {
                     return fileURL
@@ -646,12 +653,63 @@ class SoundPackManager: ObservableObject {
         print("❌ 在声音包 \(packId) 中未找到声音: \(soundName)")
         
         // 回退到内置声音
-        if let builtInURL = AudioResources.shared.getAudioURL(for: soundName) {
-            print("🔄 使用内置声音: \(soundName)")
-            return builtInURL
+        return getBuiltInSoundURL(soundName)
+    }
+    
+    // 新增方法：获取内置声音URL
+    private func getBuiltInSoundURL(_ soundName: String) -> URL? {
+        let possibleExtensions = ["caf", "wav", "mp3", "m4a"]
+        
+        for ext in possibleExtensions {
+            if let path = Bundle.main.path(forResource: soundName, ofType: ext) {
+                return URL(fileURLWithPath: path)
+            }
         }
         
+        // 尝试通过AudioResources获取
+        if let url = AudioResources.shared.getAudioURL(for: soundName) {
+            return url
+        }
+        
+        print("⚠️ 未找到内置声音文件: \(soundName)")
         return nil
+    }
+    
+    // 验证音效包是否有效
+    func validateSoundPack(_ packId: String) -> Bool {
+        // 内置音效包总是有效
+        if packId.hasPrefix("builtin_") {
+            return true
+        }
+        
+        // 检查自定义音效包
+        guard let pack = installedSoundPacks.first(where: { $0.id == packId }) else {
+            print("⚠️ 音效包不存在: \(packId)")
+            return false
+        }
+        
+        // 检查是否至少有一个声音文件
+        if pack.sounds.isEmpty {
+            print("⚠️ 音效包 \(pack.name) 中没有声音文件")
+            return false
+        }
+        
+        // 检查目录是否存在
+        guard let directoryURL = pack.directoryURL else {
+            print("⚠️ 音效包 \(pack.name) 目录不存在")
+            return false
+        }
+        
+        // 检查至少一个声音文件是否存在
+        for sound in pack.sounds {
+            let fileURL = directoryURL.appendingPathComponent(sound.fileName)
+            if fileManager.fileExists(atPath: fileURL.path) {
+                return true
+            }
+        }
+        
+        print("⚠️ 音效包 \(pack.name) 中没有有效的声音文件")
+        return false
     }
     
     func observeSoundPackChanges() {

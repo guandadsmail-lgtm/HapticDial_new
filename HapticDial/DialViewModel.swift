@@ -157,15 +157,16 @@ class DialViewModel: ObservableObject {
 
     // 新增方法：播放刻度声音
     private func playSoundForNotch() {
+        guard soundEnabled else { return }
+        
         // 如果有自定义声音包，使用自定义声音包
         if let packId = hapticManager.currentCustomSoundPack {
             playCustomSoundFromPack(packId)
             return
         }
         
-        // 否则使用HapticManager默认的声音
-        // 注意：需要确保HapticManager中的playSoundForCurrentMode方法是public或internal
-        hapticManager.playSoundForCurrentMode()
+        // 否则使用内置声音
+        playDefaultSound()
     }
 
     // 从自定义声音包播放声音
@@ -180,9 +181,28 @@ class DialViewModel: ObservableObject {
             if let clickURL = SoundPackManager.shared.getSoundFileURL(forSoundPack: packId, soundName: "click") {
                 playAudioFromURL(clickURL)
             } else {
-                // 回退到HapticManager默认声音
-                hapticManager.playSoundForCurrentMode()
+                // 回退到默认声音
+                playDefaultSound()
             }
+        }
+    }
+
+    // 播放默认内置声音
+    private func playDefaultSound() {
+        // 根据当前模式播放内置声音
+        let soundName: String
+        switch currentMode {
+        case .ratchet:
+            soundName = "mechanical_click"
+        case .aperture:
+            soundName = "digital_beep"
+        }
+        
+        if let url = Bundle.main.url(forResource: soundName, withExtension: "caf") {
+            playAudioFromURL(url)
+        } else {
+            // 如果找不到内置文件，使用HapticManager
+            hapticManager.playSoundForCurrentMode()
         }
     }
 
@@ -196,8 +216,8 @@ class DialViewModel: ObservableObject {
             player.play()
         } catch {
             print("❌ 播放自定义音频失败: \(error)")
-            // 回退到HapticManager默认声音
-            hapticManager.playSoundForCurrentMode()
+            // 回退到默认声音
+            playDefaultSound()
         }
     }
 

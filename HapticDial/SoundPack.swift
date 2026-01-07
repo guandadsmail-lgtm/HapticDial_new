@@ -11,7 +11,7 @@ struct SoundPack: Identifiable, Codable {
     var soundFiles: [String]?
     
     enum CodingKeys: String, CodingKey {
-        case id, name, description, author, version, sounds
+        case id, name, description, author, version, sounds, soundFiles
     }
     
     static let supportedAudioExtensions = ["mp3", "wav", "m4a", "aac", "caf"]
@@ -37,8 +37,8 @@ struct SoundPack: Identifiable, Codable {
         author = try container.decode(String.self, forKey: .author)
         version = try container.decode(String.self, forKey: .version)
         sounds = try container.decode([Sound].self, forKey: .sounds)
-        directoryURL = nil
-        soundFiles = nil
+        soundFiles = try container.decodeIfPresent([String].self, forKey: .soundFiles)
+        directoryURL = nil  // 解码时不设置，加载时再设置
     }
     
     // 编码
@@ -50,6 +50,8 @@ struct SoundPack: Identifiable, Codable {
         try container.encode(author, forKey: .author)
         try container.encode(version, forKey: .version)
         try container.encode(sounds, forKey: .sounds)
+        try container.encodeIfPresent(soundFiles, forKey: .soundFiles)
+        // 注意：directoryURL 不编码到 JSON 中
     }
 }
 

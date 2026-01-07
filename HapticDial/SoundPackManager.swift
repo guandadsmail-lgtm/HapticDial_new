@@ -1,7 +1,9 @@
+// Managers/SoundPackManager.swift - 修复版
 import Foundation
 import Combine
 import Zip
 import UniformTypeIdentifiers
+import SwiftUI
 
 class SoundPackManager: ObservableObject {
     static let shared = SoundPackManager()
@@ -10,6 +12,8 @@ class SoundPackManager: ObservableObject {
     @Published var installedSoundPacks: [SoundPack] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var isInstalling = false
+    @Published var currentInstallation: String?
     
     private let fileManager = FileManager.default
     
@@ -24,66 +28,84 @@ class SoundPackManager: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        // 模拟加载过程 - 实际应用中这里会从服务器获取
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-            guard let self = self else { return }
-            
-            self.availablePacks = [
-                SoundPack(
-                    id: "mechanical-pack",
-                    name: "Mechanical Pack",
-                    description: "Classic mechanical sounds",
-                    author: "System",
-                    version: "1.0",
-                    sounds: [
-                        Sound(id: UUID(), name: "Click", fileName: "mechanical_click.caf"),
-                        Sound(id: UUID(), name: "Tick", fileName: "mechanical_tick.caf"),
-                        Sound(id: UUID(), name: "Pop", fileName: "mechanical_pop.caf")
-                    ],
-                    soundFiles: ["mechanical_click.caf", "mechanical_tick.caf", "mechanical_pop.caf"]
-                ),
-                SoundPack(
-                    id: "digital-pack",
-                    name: "Digital Pack",
-                    description: "Clean digital beeps and tones",
-                    author: "System",
-                    version: "1.0",
-                    sounds: [
-                        Sound(id: UUID(), name: "Beep", fileName: "digital_beep.caf"),
-                        Sound(id: UUID(), name: "Tone", fileName: "digital_tone.caf"),
-                        Sound(id: UUID(), name: "Blip", fileName: "digital_blip.caf")
-                    ],
-                    soundFiles: ["digital_beep.caf", "digital_tone.caf", "digital_blip.caf"]
-                ),
-                SoundPack(
-                    id: "natural-pack",
-                    name: "Natural Pack",
-                    description: "Natural water and wood sounds",
-                    author: "System",
-                    version: "1.0",
-                    sounds: [
-                        Sound(id: UUID(), name: "Water Drop", fileName: "water_drop.caf"),
-                        Sound(id: UUID(), name: "Wood Tap", fileName: "wood_tap.caf"),
-                        Sound(id: UUID(), name: "Bubble Pop", fileName: "bubble_pop.caf")
-                    ],
-                    soundFiles: ["water_drop.caf", "wood_tap.caf", "bubble_pop.caf"]
-                ),
-                SoundPack(
-                    id: "futuristic-pack",
-                    name: "Futuristic Pack",
-                    description: "Sci-fi laser and energy sounds",
-                    author: "System",
-                    version: "1.0",
-                    sounds: [
-                        Sound(id: UUID(), name: "Laser", fileName: "laser_click.caf"),
-                        Sound(id: UUID(), name: "Synth", fileName: "synth_tick.caf"),
-                        Sound(id: UUID(), name: "Energy", fileName: "energy_pop.caf")
-                    ],
-                    soundFiles: ["laser_click.caf", "synth_tick.caf", "energy_pop.caf"]
+        // 从内置资源加载预置音效包
+        let builtInPacks = [
+            SoundPack(
+                id: "mechanical-pack",
+                name: "机械音效包",
+                description: "经典机械声音效果",
+                author: "HapticDial",
+                version: "1.0",
+                sounds: [
+                    Sound(id: UUID(), name: "机械点击", fileName: "mechanical_click.caf"),
+                    Sound(id: UUID(), name: "机械滴答", fileName: "mechanical_tick.caf"),
+                    Sound(id: UUID(), name: "机械弹出", fileName: "mechanical_pop.caf")
+                ],
+                soundFiles: ["mechanical_click.caf", "mechanical_tick.caf", "mechanical_pop.caf"]
+            ),
+            SoundPack(
+                id: "digital-pack",
+                name: "数字音效包",
+                description: "清晰的数字提示音",
+                author: "HapticDial",
+                version: "1.0",
+                sounds: [
+                    Sound(id: UUID(), name: "数字蜂鸣", fileName: "digital_beep.caf"),
+                    Sound(id: UUID(), name: "数字音调", fileName: "digital_tone.caf"),
+                    Sound(id: UUID(), name: "数字短音", fileName: "digital_blip.caf")
+                ],
+                soundFiles: ["digital_beep.caf", "digital_tone.caf", "digital_blip.caf"]
+            ),
+            SoundPack(
+                id: "natural-pack",
+                name: "自然音效包",
+                description: "自然水滴和木材声音",
+                author: "HapticDial",
+                version: "1.0",
+                sounds: [
+                    Sound(id: UUID(), name: "水滴声", fileName: "water_drop.caf"),
+                    Sound(id: UUID(), name: "木块敲击", fileName: "wood_tap.caf"),
+                    Sound(id: UUID(), name: "气泡破裂", fileName: "bubble_pop.caf")
+                ],
+                soundFiles: ["water_drop.caf", "wood_tap.caf", "bubble_pop.caf"]
+            ),
+            SoundPack(
+                id: "futuristic-pack",
+                name: "未来音效包",
+                description: "科幻激光和能量声音",
+                author: "HapticDial",
+                version: "1.0",
+                sounds: [
+                    Sound(id: UUID(), name: "激光点击", fileName: "laser_click.caf"),
+                    Sound(id: UUID(), name: "合成滴答", fileName: "synth_tick.caf"),
+                    Sound(id: UUID(), name: "能量弹出", fileName: "energy_pop.caf")
+                ],
+                soundFiles: ["laser_click.caf", "synth_tick.caf", "energy_pop.caf"]
+            )
+        ]
+        
+        // 检查哪些音效包已经安装
+        var enhancedPacks = builtInPacks
+        for i in 0..<enhancedPacks.count {
+            if isSoundPackInstalled(enhancedPacks[i].id) {
+                let updatedPack = SoundPack(
+                    id: enhancedPacks[i].id,
+                    name: enhancedPacks[i].name,
+                    description: enhancedPacks[i].description,
+                    author: enhancedPacks[i].author,
+                    version: enhancedPacks[i].version,
+                    sounds: enhancedPacks[i].sounds,
+                    directoryURL: getInstalledPackDirectory(enhancedPacks[i].id),
+                    soundFiles: enhancedPacks[i].soundFiles
                 )
-            ]
-            
-            self.isLoading = false
+                enhancedPacks[i] = updatedPack
+            }
+        }
+        
+        DispatchQueue.main.async { [weak self] in
+            self?.availablePacks = enhancedPacks
+            self?.isLoading = false
+            print("📦 加载了 \(enhancedPacks.count) 个可用音效包")
         }
     }
     
@@ -95,7 +117,7 @@ class SoundPackManager: ObservableObject {
                 let contents = try fileManager.contentsOfDirectory(
                     at: installedPacksDirectory,
                     includingPropertiesForKeys: [.isDirectoryKey],
-                    options: []
+                    options: [.skipsHiddenFiles]
                 )
                 
                 var packs: [SoundPack] = []
@@ -109,13 +131,21 @@ class SoundPackManager: ObservableObject {
                     }
                 }
                 
-                installedSoundPacks = packs
+                DispatchQueue.main.async { [weak self] in
+                    self?.installedSoundPacks = packs
+                    print("✅ 加载了 \(packs.count) 个已安装音效包")
+                }
             } else {
-                installedSoundPacks = []
+                DispatchQueue.main.async { [weak self] in
+                    self?.installedSoundPacks = []
+                }
             }
         } catch {
-            print("加载已安装音效包失败: \(error)")
-            installedSoundPacks = []
+            print("❌ 加载已安装音效包失败: \(error)")
+            DispatchQueue.main.async { [weak self] in
+                self?.installedSoundPacks = []
+                self?.errorMessage = "加载音效包失败: \(error.localizedDescription)"
+            }
         }
     }
     
@@ -134,24 +164,23 @@ class SoundPackManager: ObservableObject {
             var pack = try decoder.decode(SoundPack.self, from: data)
             pack.directoryURL = directoryURL
             
-            // 加载音效文件
-            if fileManager.fileExists(atPath: directoryURL.path) {
-                let soundFiles = try fileManager.contentsOfDirectory(at: directoryURL,
-                                                                    includingPropertiesForKeys: nil,
-                                                                    options: [.skipsHiddenFiles])
-                
-                var sounds: [Sound] = []
-                for fileURL in soundFiles {
-                    let fileExtension = fileURL.pathExtension.lowercased()
-                    if SoundPack.supportedAudioExtensions.contains(fileExtension) {
-                        let fileName = fileURL.deletingPathExtension().lastPathComponent
-                        let sound = Sound(id: UUID(), name: fileName, fileName: fileURL.lastPathComponent)
-                        sounds.append(sound)
-                    }
+            // 加载实际的声音文件
+            var actualSounds: [Sound] = []
+            let soundFiles = try fileManager.contentsOfDirectory(at: directoryURL,
+                                                               includingPropertiesForKeys: nil,
+                                                               options: [.skipsHiddenFiles])
+            
+            for fileURL in soundFiles {
+                let fileExtension = fileURL.pathExtension.lowercased()
+                if SoundPack.supportedAudioExtensions.contains(fileExtension) {
+                    let fileName = fileURL.lastPathComponent
+                    let soundName = fileURL.deletingPathExtension().lastPathComponent
+                    let sound = Sound(id: UUID(), name: soundName, fileName: fileName)
+                    actualSounds.append(sound)
                 }
-                
-                pack.sounds = sounds
             }
+            
+            pack.sounds = actualSounds
             
             return pack
         } catch {
@@ -160,15 +189,161 @@ class SoundPackManager: ObservableObject {
         }
     }
     
+    // MARK: - 安装功能（修复安装无响应问题）
+    
+    func installSoundPack(_ packId: String) async throws -> SoundPack {
+        print("📥 开始安装音效包: \(packId)")
+        
+        DispatchQueue.main.async {
+            self.isInstalling = true
+            self.currentInstallation = packId
+        }
+        
+        defer {
+            DispatchQueue.main.async {
+                self.isInstalling = false
+                self.currentInstallation = nil
+            }
+        }
+        
+        // 查找音效包
+        guard let pack = availablePacks.first(where: { $0.id == packId }) else {
+            throw NSError(domain: "SoundPackManager", code: 100,
+                         userInfo: [NSLocalizedDescriptionKey: "未找到音效包: \(packId)"])
+        }
+        
+        // 如果已经安装，直接返回
+        if isSoundPackInstalled(packId) {
+            print("📦 音效包已经安装: \(pack.name)")
+            return pack
+        }
+        
+        let packsDirectory = getInstalledPacksDirectory()
+        let packDirectory = packsDirectory.appendingPathComponent(packId)
+        
+        // 创建目录
+        do {
+            if fileManager.fileExists(atPath: packDirectory.path) {
+                try fileManager.removeItem(at: packDirectory)
+            }
+            try fileManager.createDirectory(at: packDirectory, withIntermediateDirectories: true)
+        } catch {
+            throw NSError(domain: "SoundPackManager", code: 101,
+                         userInfo: [NSLocalizedDescriptionKey: "创建目录失败: \(error.localizedDescription)"])
+        }
+        
+        // 获取所有需要的音频文件URL
+        var soundFilesToCopy: [(sourceURL: URL, destinationName: String)] = []
+        
+        if let soundFiles = pack.soundFiles {
+            for soundFile in soundFiles {
+                let soundName = soundFile.replacingOccurrences(of: ".caf", with: "")
+                    .replacingOccurrences(of: ".wav", with: "")
+                    .replacingOccurrences(of: ".mp3", with: "")
+                    .replacingOccurrences(of: ".m4a", with: "")
+                
+                // 1. 首先尝试从AudioResources获取
+                if let audioResourcesURL = AudioResources.shared.getAudioURL(for: soundName) {
+                    let destURL = packDirectory.appendingPathComponent(soundFile)
+                    soundFilesToCopy.append((audioResourcesURL, soundFile))
+                } else {
+                    print("⚠️ 在AudioResources中未找到声音文件: \(soundName)")
+                }
+            }
+        }
+        
+        // 复制所有文件
+        for (sourceURL, fileName) in soundFilesToCopy {
+            let destURL = packDirectory.appendingPathComponent(fileName)
+            do {
+                try fileManager.copyItem(at: sourceURL, to: destURL)
+                print("✅ 复制文件: \(fileName)")
+            } catch {
+                print("⚠️ 复制文件失败 \(fileName): \(error)")
+                // 继续复制其他文件
+            }
+        }
+        
+        // 保存manifest.json
+        let manifestURL = packDirectory.appendingPathComponent("manifest.json")
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        
+        let installedPack = SoundPack(
+            id: pack.id,
+            name: pack.name,
+            description: pack.description,
+            author: pack.author,
+            version: pack.version,
+            sounds: pack.sounds,
+            directoryURL: packDirectory,
+            soundFiles: pack.soundFiles
+        )
+        
+        do {
+            let data = try encoder.encode(installedPack)
+            try data.write(to: manifestURL)
+            print("✅ 保存manifest.json")
+        } catch {
+            print("⚠️ 保存manifest.json失败: \(error)")
+            // 即使manifest保存失败，也不视为完全失败
+        }
+        
+        // 更新已安装列表
+        DispatchQueue.main.async { [weak self] in
+            self?.loadInstalledSoundPacks()
+            self?.loadAvailablePacks() // 刷新可用列表状态
+        }
+        
+        // 通知HapticManager刷新
+        DispatchQueue.main.async {
+            HapticManager.shared.refreshSoundPacks()
+        }
+        
+        print("🎉 音效包安装成功: \(pack.name)")
+        
+        return installedPack
+    }
+    
+    // 一键安装所有内置音效包
+    func installAllBuiltInPacks() async -> [SoundPack] {
+        var installedPacks: [SoundPack] = []
+        
+        for pack in availablePacks {
+            if !isSoundPackInstalled(pack.id) {
+                do {
+                    let installedPack = try await installSoundPack(pack.id)
+                    installedPacks.append(installedPack)
+                    // 稍微延迟，避免过快
+                    try await Task.sleep(nanoseconds: 500_000_000) // 0.5秒
+                } catch {
+                    print("⚠️ 安装音效包失败 \(pack.name): \(error)")
+                }
+            }
+        }
+        
+        return installedPacks
+    }
+    
+    func isSoundPackInstalled(_ packId: String) -> Bool {
+        let packDirectory = getInstalledPackDirectory(packId)
+        let manifestURL = packDirectory.appendingPathComponent("manifest.json")
+        return fileManager.fileExists(atPath: manifestURL.path)
+    }
+    
+    private func getInstalledPackDirectory(_ packId: String) -> URL {
+        return getInstalledPacksDirectory().appendingPathComponent(packId)
+    }
+    
     // MARK: - Zip 相关功能
     
-    func importSoundPack(from zipURL: URL) throws -> SoundPack {
-        let packsDirectory = try getInstalledPacksDirectory()
+    func importSoundPack(from zipURL: URL) async throws -> SoundPack {
+        print("📦 导入音效包: \(zipURL.lastPathComponent)")
         
-        // 解压 ZIP 文件
+        let packsDirectory = getInstalledPacksDirectory()
         let unzipDirectory = packsDirectory.appendingPathComponent(UUID().uuidString)
         
-        // 使用 Zip 库解压文件
+        // 解压 ZIP 文件
         do {
             try Zip.unzipFile(zipURL, destination: unzipDirectory, overwrite: true, password: nil, progress: nil)
             print("✅ 解压成功: \(unzipDirectory.path)")
@@ -182,6 +357,7 @@ class SoundPackManager: ObservableObject {
         
         // 更新已安装列表
         loadInstalledSoundPacks()
+        loadAvailablePacks()
         
         return pack
     }
@@ -226,6 +402,11 @@ class SoundPackManager: ObservableObject {
             if let index = installedSoundPacks.firstIndex(where: { $0.id == pack.id }) {
                 installedSoundPacks.remove(at: index)
             }
+            
+            // 刷新可用列表
+            loadAvailablePacks()
+            
+            print("🗑️ 删除音效包: \(pack.name)")
         } catch {
             throw NSError(domain: "SoundPackManager", code: 9,
                          userInfo: [NSLocalizedDescriptionKey: "删除失败: \(error.localizedDescription)"])
@@ -233,7 +414,7 @@ class SoundPackManager: ObservableObject {
     }
     
     func createSoundPack(name: String, description: String = "", author: String = "") throws -> SoundPack {
-        let packsDirectory = try getInstalledPacksDirectory()
+        let packsDirectory = getInstalledPacksDirectory()
         let packDirectory = packsDirectory.appendingPathComponent(UUID().uuidString)
         
         try fileManager.createDirectory(at: packDirectory, withIntermediateDirectories: true)
@@ -260,12 +441,22 @@ class SoundPackManager: ObservableObject {
                          userInfo: [NSLocalizedDescriptionKey: "创建manifest失败: \(error.localizedDescription)"])
         }
         
-        var mutablePack = pack
-        mutablePack.directoryURL = packDirectory
+        let mutablePack = SoundPack(
+            id: pack.id,
+            name: pack.name,
+            description: pack.description,
+            author: pack.author,
+            version: pack.version,
+            sounds: pack.sounds,
+            directoryURL: packDirectory,
+            soundFiles: pack.soundFiles
+        )
         
         // 添加到列表
         installedSoundPacks.append(mutablePack)
         installedSoundPacks.sort { $0.name < $1.name }
+        
+        print("📁 创建新音效包: \(name)")
         
         return mutablePack
     }
@@ -306,6 +497,8 @@ class SoundPackManager: ObservableObject {
                 try data.write(to: manifestURL)
             }
             
+            print("🔊 添加音效: \(sound.name) 到 \(pack.name)")
+            
             return sound
         } catch {
             throw NSError(domain: "SoundPackManager", code: 11,
@@ -340,6 +533,8 @@ class SoundPackManager: ObservableObject {
                 let data = try encoder.encode(updatedPack)
                 try data.write(to: manifestURL)
             }
+            
+            print("🗑️ 从 \(pack.name) 中移除音效: \(sound.name)")
         } catch {
             throw NSError(domain: "SoundPackManager", code: 12,
                          userInfo: [NSLocalizedDescriptionKey: "移除音效失败: \(error.localizedDescription)"])
@@ -353,7 +548,12 @@ class SoundPackManager: ObservableObject {
         let packsDirectory = documentsDirectory.appendingPathComponent("SoundPacks")
         
         if !fileManager.fileExists(atPath: packsDirectory.path) {
-            try? fileManager.createDirectory(at: packsDirectory, withIntermediateDirectories: true)
+            do {
+                try fileManager.createDirectory(at: packsDirectory, withIntermediateDirectories: true)
+                print("📁 创建音效包目录: \(packsDirectory.path)")
+            } catch {
+                print("❌ 创建音效包目录失败: \(error)")
+            }
         }
         
         return packsDirectory
@@ -384,17 +584,7 @@ class SoundPackManager: ObservableObject {
             }
         }
         
-        // 尝试在soundFiles中查找
-        if let soundFiles = pack.soundFiles {
-            for fileName in soundFiles {
-                let fileURL = directoryURL.appendingPathComponent(fileName)
-                if fileManager.fileExists(atPath: fileURL.path) {
-                    return fileURL
-                }
-            }
-        }
-        
-        // 最后尝试在声音列表中查找
+        // 尝试在声音列表中查找
         for sound in pack.sounds {
             if sound.name.lowercased() == soundName.lowercased() {
                 let fileURL = directoryURL.appendingPathComponent(sound.fileName)
@@ -420,40 +610,45 @@ class SoundPackManager: ObservableObject {
         // 这里简化为定期刷新
         Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
             self?.loadInstalledSoundPacks()
+            self?.loadAvailablePacks()
         }
     }
     
-    // MARK: - Zip 功能测试
+    // MARK: - 批量操作
     
-    func testZipFunctionality() {
-        print("🔧 开始测试 Zip 库功能...")
-        
-        // 创建测试目录
-        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    func uninstallAllSoundPacks() {
+        let packsDirectory = getInstalledPacksDirectory()
         
         do {
-            try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
-            
-            // 创建测试文件
-            let testFile = tempDir.appendingPathComponent("test.txt")
-            try "Hello, Zip!".write(to: testFile, atomically: true, encoding: .utf8)
-            
-            // 测试压缩
-            let zipFile = tempDir.appendingPathComponent("test.zip")
-            try? Zip.zipFiles(paths: [testFile], zipFilePath: zipFile, password: nil, progress: nil)
-            print("✅ 压缩测试成功: \(zipFile.lastPathComponent)")
-            
-            // 测试解压
-            let unzipDir = tempDir.appendingPathComponent("unzipped")
-            try? Zip.unzipFile(zipFile, destination: unzipDir, overwrite: true, password: nil, progress: nil)
-            print("✅ 解压测试成功")
-            
-            // 清理
-            try? fileManager.removeItem(at: tempDir)
-            print("🧹 测试完成，已清理临时文件")
-            
+            if fileManager.fileExists(atPath: packsDirectory.path) {
+                let contents = try fileManager.contentsOfDirectory(
+                    at: packsDirectory,
+                    includingPropertiesForKeys: nil,
+                    options: [.skipsHiddenFiles]
+                )
+                
+                for url in contents {
+                    try? fileManager.removeItem(at: url)
+                    print("🗑️ 删除: \(url.lastPathComponent)")
+                }
+                
+                DispatchQueue.main.async { [weak self] in
+                    self?.installedSoundPacks = []
+                    self?.loadAvailablePacks()
+                    print("🧹 已卸载所有音效包")
+                }
+            }
         } catch {
-            print("❌ Zip 测试失败: \(error)")
+            print("❌ 卸载所有音效包失败: \(error)")
+        }
+    }
+    
+    func refreshAll() {
+        DispatchQueue.main.async { [weak self] in
+            self?.loadAvailablePacks()
+            self?.loadInstalledSoundPacks()
+            HapticManager.shared.refreshSoundPacks()
+            print("🔄 刷新所有音效包数据")
         }
     }
 }

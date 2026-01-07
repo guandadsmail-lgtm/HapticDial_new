@@ -585,7 +585,6 @@ class HapticManager: NSObject, ObservableObject {
         return pack.soundFiles ?? []
     }
     
-    // 测试自定义声音包 - 修复版本
     func testSoundPack(_ packId: String) {
         print("🎵 测试声音包: \(packId)")
         

@@ -9,29 +9,30 @@ struct DialViewRedesigned: View {
     @State private var particleRotation: Double = 0.0
     
     // 红色轨迹相关状态
-    @State private var trailStartAngle: Double = 90.0  // 起始角度（12点方向）
-    @State private var trailEndAngle: Double = 90.0    // 当前结束角度
+    @State private var trailStartAngle: Double = 270.0  // 起始角度（12点方向）
+    @State private var trailEndAngle: Double = 0.0    // 当前结束角度
     @State private var previousAngle: Double = 0.0     // 用于检测旋转方向
     @State private var trailOpacity: Double = 1.0      // 轨迹透明度
     @State private var shouldAnimateTrail: Bool = false // 是否需要动画
     
     let dialSize: CGFloat = 320
-    let innerRadius: CGFloat = 105     // 中心圆的半径（从100调整到105）
+    let innerRadius: CGFloat = 105     // 中心圆的半径（液态玻璃外沿）
     let outerRadius: CGFloat = 145     // 灰色刻度环的中心半径
     let grayRingWidth: CGFloat = 22    // 灰色圆环宽度
     let dotRadius: CGFloat = 180       // 荧光圆点的半径
+    
+    // 红色圆环参数 - 内环到中环之间
+    private let redTrailInnerRadius: CGFloat = 35  // 内环外沿（液态玻璃外沿）
+    private let redTrailOuterRadius: CGFloat = 115  // 中环外沿（数字环内沿）
+    private let redTrailColor = Color.red
     
     // 荧光颜色
     private let fluorescentColor = Color(red: 0.8, green: 1.0, blue: 0.6)
     private let fluorescentHighlight = Color(red: 0.9, green: 1.0, blue: 0.7)
     
     // 指示器颜色
-    private let bubbleBlue = Color(red: 0.2, green: 0.8, blue: 1.0)      // 气泡蓝色
-    private let gearRed = Color(red: 1.0, green: 0.4, blue: 0.2)         // 齿轮红色
-    
-    // 红色轨迹圆环参数
-    private let trailColor = Color(red: 1.0, green: 0.3, blue: 0.3).opacity(0.7)
-    private let trailWidth: CGFloat = 22
+    private let bubbleBlue = Color(red: 0.2, green: 0.8, blue: 1.0)
+    private let gearRed = Color(red: 1.0, green: 0.4, blue: 0.2)
     
     // 计算灰色圆环的内外半径
     private var grayRingInnerRadius: CGFloat {
@@ -45,6 +46,16 @@ struct DialViewRedesigned: View {
     // 计算旋转圈数
     private var rotationCount: Int {
         return Int(viewModel.totalRotation / 360)
+    }
+    
+    // 红色圆环的宽度
+    private var redTrailWidth: CGFloat {
+        return redTrailOuterRadius - redTrailInnerRadius
+    }
+    
+    // 红色圆环的中心半径
+    private var redTrailCenterRadius: CGFloat {
+        return (redTrailInnerRadius + redTrailOuterRadius) / 2
     }
     
     var body: some View {
@@ -77,22 +88,26 @@ struct DialViewRedesigned: View {
                     .frame(width: (grayRingOuterRadius + 5) * 2, height: (grayRingOuterRadius + 5) * 2)
                     .blur(radius: 0.5)
                 
-                // 红色轨迹圆环（跟随指针动态绘制）
-                DynamicTrailRing(center: center, outerRadius: outerRadius, trailWidth: trailWidth,
-                                 trailColor: trailColor, trailOpacity: trailOpacity,
-                                 startAngle: trailStartAngle, endAngle: trailEndAngle,
+                // 内环红色轨迹圆环（从内环外沿到中环外沿，起始端在指针位置）
+                InnerRedTrailRing(center: center,
+                                 innerRadius: redTrailInnerRadius,
+                                 outerRadius: redTrailOuterRadius,
+                                 trailColor: redTrailColor,
+                                 trailOpacity: trailOpacity,
+                                 startAngle: trailStartAngle, // 起始角度固定为12点方向
+                                 endAngle: trailEndAngle,      // 结束角度跟随指针
                                  shouldAnimate: shouldAnimateTrail)
                 
-                // 荧光刻度线 - 调整到灰色圆盘位置
+                // 荧光刻度线
                 FluorescentTicks(center: center, innerRadius: innerRadius, grayRingInnerRadius: grayRingInnerRadius,
                                  grayRingOuterRadius: grayRingOuterRadius, dotRadius: dotRadius,
                                  fluorescentColor: fluorescentColor, fluorescentHighlight: fluorescentHighlight)
                 
-                // 荧光圆点 - 放置在灰色圆盘外侧
+                // 荧光圆点
                 FluorescentDots(center: center, dotRadius: dotRadius,
                                 fluorescentColor: fluorescentColor, fluorescentHighlight: fluorescentHighlight)
                 
-                // 内圈数字：1-12（时钟数字）- 调整位置以适应新的中心圆半径
+                // 内圈数字：1-12（时钟数字）
                 InnerNumbers(center: center, innerRadius: innerRadius, grayRingInnerRadius: grayRingInnerRadius)
                 
                 // 中心液态玻璃区域 + 中心刻度线
@@ -125,7 +140,7 @@ struct DialViewRedesigned: View {
                 }
                 .zIndex(10)
                 
-                // 指示器（光标）- 使用气泡蓝到齿轮红的渐变
+                // 指示器（光标）
                 Indicator(outerRadius: outerRadius, currentAngle: viewModel.currentAngle,
                           bubbleBlue: bubbleBlue, gearRed: gearRed)
             }
@@ -142,6 +157,8 @@ struct DialViewRedesigned: View {
                 
                 // 初始化角度
                 previousAngle = viewModel.currentAngle
+                // 初始时，红色圆环长度为0（起始和结束都在12点方向）
+                trailEndAngle = trailStartAngle
             }
             .onChange(of: viewModel.currentAngle) { oldAngle, newAngle in
                 updateTrailAngle(newAngle: newAngle, oldAngle: oldAngle)
@@ -160,7 +177,6 @@ struct DialViewRedesigned: View {
                             value.location.y - center.y
                         )
                         
-                        // 检查触摸点是否在有效区域内
                         let isInValidZone = distance >= (innerRadius - 10) && distance <= (outerRadius + 20)
                         
                         if isInValidZone {
@@ -171,7 +187,6 @@ struct DialViewRedesigned: View {
                             }
                             viewModel.handleDragChange(location: value.location, center: center)
                         } else {
-                            // 触摸点在无效区域，忽略输入
                             if isDragging {
                                 viewModel.handleDragEnd()
                                 isDragging = false
@@ -196,19 +211,11 @@ struct DialViewRedesigned: View {
         // 计算角度变化量
         let angleDelta = newAngle - oldAngle
         
-        // 调整轨迹结束角度
+        // 调整轨迹结束角度（跟随指针绘制）
         trailEndAngle += angleDelta
         
         // 确保角度在0-360范围内
         trailEndAngle = normalizeAngle(trailEndAngle)
-        
-        // 如果反向旋转（角度减小），调整轨迹
-        if angleDelta < 0 && trailEndAngle < trailStartAngle {
-            // 当反向旋转越过起始点时，重置轨迹
-            if trailEndAngle < trailStartAngle - 180 {
-                trailEndAngle = trailStartAngle
-            }
-        }
         
         // 更新前一个角度
         previousAngle = newAngle
@@ -223,6 +230,7 @@ struct DialViewRedesigned: View {
         
         // 重置角度并淡入
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            // 重置红色圆环，起始和结束都在12点方向
             trailEndAngle = trailStartAngle
             withAnimation(.easeOut(duration: 0.2)) {
                 trailOpacity = 1.0
@@ -243,35 +251,51 @@ struct DialViewRedesigned: View {
     }
 }
 
-// MARK: - 动态轨迹圆环组件
+// MARK: - 内环红色轨迹圆环组件
 
-struct DynamicTrailRing: View {
+struct InnerRedTrailRing: View {
     let center: CGPoint
+    let innerRadius: CGFloat
     let outerRadius: CGFloat
-    let trailWidth: CGFloat
     let trailColor: Color
     let trailOpacity: Double
-    let startAngle: Double
-    let endAngle: Double
+    let startAngle: Double  // 起始角度（12点方向）
+    let endAngle: Double    // 结束角度（跟随指针）
     let shouldAnimate: Bool
+    
+    // 计算圆环宽度
+    private var trailWidth: CGFloat {
+        return outerRadius - innerRadius
+    }
     
     var body: some View {
         // 确保结束角度大于起始角度（顺时针方向）
+        // 如果endAngle小于startAngle，说明已经转了一圈，需要加上360度
         let adjustedEndAngle = endAngle >= startAngle ? endAngle : endAngle + 360
         
+        // 创建一个圆环段（从内半径到外半径）
         Path { path in
+            // 绘制外圆弧（从startAngle到adjustedEndAngle）
             path.addArc(center: center,
                        radius: outerRadius,
                        startAngle: .degrees(startAngle),
                        endAngle: .degrees(adjustedEndAngle),
                        clockwise: false)
+            
+            // 绘制内圆弧（从adjustedEndAngle到startAngle，反向）
+            path.addArc(center: center,
+                       radius: innerRadius,
+                       startAngle: .degrees(adjustedEndAngle),
+                       endAngle: .degrees(startAngle),
+                       clockwise: true)
+            
+            // 闭合路径
+            path.closeSubpath()
         }
-        .trim(from: 0, to: 1)
-        .stroke(trailColor, style: StrokeStyle(lineWidth: trailWidth, lineCap: .round, lineJoin: .round))
+        .fill(trailColor)
         .opacity(trailOpacity)
         .animation(shouldAnimate ? .easeInOut(duration: 0.1) : .none, value: endAngle)
         .animation(.easeInOut(duration: 0.2), value: trailOpacity)
-        .shadow(color: trailColor.opacity(0.5), radius: 5, x: 0, y: 0)
     }
 }
 

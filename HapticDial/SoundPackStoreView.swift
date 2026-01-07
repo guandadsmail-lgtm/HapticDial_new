@@ -1,5 +1,6 @@
 // Views/SoundPackStore/SoundPackStore.swift
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SoundPackStoreView: View {
     @StateObject private var soundPackManager = SoundPackManager.shared
@@ -12,8 +13,13 @@ struct SoundPackStoreView: View {
     @State private var showingInstallError = false
     @State private var errorMessage = ""
     @State private var isLoading = false
-    // 修复：添加一个布尔状态来跟踪安装状态，移除未使用的参数
     @State private var isInstallingAll = false
+    @State private var showingUploadSheet = false
+    @State private var showingCreatePackSheet = false
+    @State private var newPackName = ""
+    @State private var selectedFiles: [URL] = []
+    @State private var isImporting = false
+    
     var body: some View {
         NavigationView {
             ZStack {
@@ -46,7 +52,23 @@ struct SoundPackStoreView: View {
                     .padding(.bottom, 20)
                     
                     // 控制按钮
-                    HStack(spacing: 15) {
+                    HStack(spacing: 12) {
+                        // 上传按钮
+                        Button(action: {
+                            showingUploadSheet = true
+                        }) {
+                            HStack {
+                                Image(systemName: "square.and.arrow.up")
+                                Text("上传音效")
+                            }
+                            .font(.system(size: 14, weight: .medium))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.purple.opacity(0.3))
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                        }
+                        
                         Button(action: {
                             Task {
                                 do {
@@ -117,7 +139,8 @@ struct SoundPackStoreView: View {
                                     onInstall: { installPack(pack) },
                                     onUninstall: { uninstallPack(pack) },
                                     onTest: { testPack(pack) },
-                                    onUse: { usePack(pack) }
+                                    onUse: { usePack(pack) },
+                                    onEdit: { editPack(pack) }
                                 )
                             }
                         }
@@ -194,37 +217,44 @@ struct SoundPackStoreView: View {
                 }
             }
             .navigationBarHidden(true)
-        }
-        .navigationViewStyle(StackNavigationViewStyle())
-        .alert("安装音效包", isPresented: $showingInstallAlert) {
-            Button("取消", role: .cancel) { }
-            Button("安装") {
-                if let packId = installPackId {
-                    installPackById(packId)
+            .sheet(isPresented: $showingUploadSheet) {
+                UploadSoundPackView()
+            }
+            .alert("安装音效包", isPresented: $showingInstallAlert) {
+                Button("取消", role: .cancel) { }
+                Button("安装") {
+                    if let packId = installPackId {
+                        installPackById(packId)
+                    }
+                }
+            } message: {
+                if let packId = installPackId,
+                   let pack = soundPackManager.availablePacks.first(where: { $0.id == packId }) {
+                    Text("确定要安装「\(pack.name)」吗？")
                 }
             }
-        } message: {
-            if let packId = installPackId,
-               let pack = soundPackManager.availablePacks.first(where: { $0.id == packId }) {
-                Text("确定要安装「\(pack.name)」吗？")
+            .alert("安装成功", isPresented: $showingInstallSuccess) {
+                Button("确定", role: .cancel) { }
+            } message: {
+                Text(successMessage)
             }
-        }
-        .alert("安装成功", isPresented: $showingInstallSuccess) {
-            Button("确定", role: .cancel) { }
-        } message: {
-            Text(successMessage)
-        }
-        .alert("安装失败", isPresented: $showingInstallError) {
-            Button("确定", role: .cancel) { }
-        } message: {
-            Text(errorMessage)
-        }
-        .onAppear {
-            soundPackManager.refreshAll()
+            .alert("安装失败", isPresented: $showingInstallError) {
+                Button("确定", role: .cancel) { }
+            } message: {
+                Text(errorMessage)
+            }
+            .onAppear {
+                soundPackManager.refreshAll()
+            }
         }
     }
     
     // MARK: - 操作函数
+    
+    private func editPack(_ pack: SoundPack) {
+        // 这里可以添加编辑音效包的逻辑
+        print("编辑音效包: \(pack.name)")
+    }
     
     private func installPack(_ pack: SoundPack) {
         installPackId = pack.id
@@ -330,8 +360,221 @@ struct SoundPackStoreView: View {
     }
 }
 
-// MARK: - 音效包卡片组件
+// MARK: - 上传音效包视图
+struct UploadSoundPackView: View {
+    @Environment(\.dismiss) var dismiss
+    @StateObject private var soundPackManager = SoundPackManager.shared
+    @StateObject private var hapticManager = HapticManager.shared
+    @State private var packName = ""
+    @State private var packDescription = ""
+    @State private var selectedFiles: [URL] = []
+    @State private var isImporting = false
+    @State private var uploadProgress: Double = 0
+    @State private var isUploading = false
+    @State private var showError = false
+    @State private var errorMessage = ""
+    @State private var showSuccess = false
+    @State private var successMessage = ""
+    @State private var showingDocumentPicker = false
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("音效包信息")) {
+                    TextField("音效包名称", text: $packName)
+                        .autocapitalization(.words)
+                    
+                    TextField("描述 (可选)", text: $packDescription)
+                }
+                
+                Section(header: Text("音效文件")) {
+                    if selectedFiles.isEmpty {
+                        VStack(spacing: 16) {
+                            Image(systemName: "music.note.list")
+                                .font(.largeTitle)
+                                .foregroundColor(.gray)
+                            
+                            Text("未选择音效文件")
+                                .foregroundColor(.gray)
+                            
+                            Button("选择音效文件") {
+                                showingDocumentPicker = true
+                            }
+                            .font(.headline)
+                            .padding()
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(10)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 20)
+                    } else {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("已选择 \(selectedFiles.count) 个文件:")
+                                .font(.headline)
+                            
+                            ForEach(selectedFiles, id: \.self) { fileURL in
+                                HStack {
+                                    Image(systemName: "waveform")
+                                        .foregroundColor(.blue)
+                                    
+                                    VStack(alignment: .leading) {
+                                        Text(fileURL.lastPathComponent)
+                                            .font(.subheadline)
+                                        
+                                        Text(formatFileSize(fileURL))
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Button(action: {
+                                        removeFile(fileURL)
+                                    }) {
+                                        Image(systemName: "xmark.circle")
+                                            .foregroundColor(.red)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                            }
+                            
+                            Button("添加更多文件") {
+                                showingDocumentPicker = true
+                            }
+                            .font(.subheadline)
+                            .padding(.top, 8)
+                        }
+                        .padding(.vertical, 8)
+                    }
+                    
+                    Text("支持的文件类型: MP3, WAV, M4A, CAF, AAC")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                
+                if isUploading {
+                    Section {
+                        VStack(spacing: 12) {
+                            ProgressView(value: uploadProgress, total: 1.0)
+                                .progressViewStyle(LinearProgressViewStyle())
+                                .accentColor(.blue)
+                            
+                            Text("上传中... \(Int(uploadProgress * 100))%")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        .padding(.vertical, 8)
+                    }
+                }
+            }
+            .navigationTitle("上传音效包")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("取消") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("创建") {
+                        createSoundPack()
+                    }
+                    .disabled(packName.isEmpty || selectedFiles.isEmpty || isUploading)
+                    .fontWeight(.semibold)
+                }
+            }
+            .onChange(of: selectedFiles) { files in
+                if !files.isEmpty {
+                    // 自动生成包名
+                    if packName.isEmpty {
+                        let formatter = DateFormatter()
+                        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+                        packName = "我的音效包 \(formatter.string(from: Date()))"
+                    }
+                }
+            }
+            .sheet(isPresented: $showingDocumentPicker) {
+                DocumentPicker(fileURLs: $selectedFiles, allowedContentTypes: SoundPackManager.supportedAudioUTIs, allowsMultipleSelection: true)
+            }
+            .alert("创建成功", isPresented: $showSuccess) {
+                Button("确定") {
+                    dismiss()
+                }
+            } message: {
+                Text(successMessage)
+            }
+            .alert("创建失败", isPresented: $showError) {
+                Button("确定", role: .cancel) { }
+            } message: {
+                Text(errorMessage)
+            }
+        }
+    }
+    
+    private func formatFileSize(_ url: URL) -> String {
+        do {
+            let resources = try url.resourceValues(forKeys: [.fileSizeKey])
+            let size = resources.fileSize ?? 0
+            
+            let formatter = ByteCountFormatter()
+            formatter.countStyle = .file
+            return formatter.string(fromByteCount: Int64(size))
+        } catch {
+            return "未知大小"
+        }
+    }
+    
+    private func removeFile(_ url: URL) {
+        selectedFiles.removeAll { $0 == url }
+    }
+    
+    private func createSoundPack() {
+        guard !packName.isEmpty && !selectedFiles.isEmpty else {
+            errorMessage = "请填写名称并选择音效文件"
+            showError = true
+            return
+        }
+        
+        isUploading = true
+        uploadProgress = 0
+        
+        Task {
+            do {
+                // 创建音效包
+                let pack = try await soundPackManager.createCustomSoundPackWithSounds(
+                    name: packName,
+                    description: packDescription,
+                    soundURLs: selectedFiles
+                )
+                
+                // 完成
+                DispatchQueue.main.async {
+                    isUploading = false
+                    successMessage = "「\(pack.name)」创建成功！"
+                    showSuccess = true
+                    
+                    // 自动设置为当前音效包
+                    hapticManager.setCurrentSoundPack(pack.id)
+                    
+                    // 自动测试新音效包
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        hapticManager.testSoundPack(pack.id)
+                    }
+                }
+                
+            } catch {
+                DispatchQueue.main.async {
+                    isUploading = false
+                    errorMessage = "创建失败: \(error.localizedDescription)"
+                    showError = true
+                }
+            }
+        }
+    }
+}
 
+// MARK: - 音效包卡片组件 - 添加编辑功能
 struct SoundPackCard: View {
     let pack: SoundPack
     let isInstalled: Bool
@@ -340,6 +583,7 @@ struct SoundPackCard: View {
     let onUninstall: () -> Void
     let onTest: () -> Void
     let onUse: () -> Void
+    let onEdit: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -361,6 +605,17 @@ struct SoundPackCard: View {
                             Image(systemName: "checkmark")
                                 .foregroundColor(.blue)
                                 .font(.caption)
+                        }
+                        
+                        // 标记自定义音效包
+                        if pack.author == "用户" {
+                            Text("自定义")
+                                .font(.caption2)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.purple.opacity(0.3))
+                                .foregroundColor(.white)
+                                .cornerRadius(4)
                         }
                     }
                     
@@ -416,7 +671,7 @@ struct SoundPackCard: View {
             }
             
             // 操作按钮
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 if isInstalled {
                     // 已安装状态
                     Button(action: onTest) {
@@ -425,11 +680,11 @@ struct SoundPackCard: View {
                             Text("测试")
                         }
                         .font(.system(size: 14, weight: .medium))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
                         .background(Color.blue.opacity(0.3))
                         .foregroundColor(.white)
-                        .cornerRadius(8)
+                        .cornerRadius(6)
                     }
                     
                     Button(action: onUse) {
@@ -438,11 +693,27 @@ struct SoundPackCard: View {
                             Text(isCurrent ? "停用" : "使用")
                         }
                         .font(.system(size: 14, weight: .medium))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
                         .background(isCurrent ? Color.red.opacity(0.3) : Color.green.opacity(0.3))
                         .foregroundColor(.white)
-                        .cornerRadius(8)
+                        .cornerRadius(6)
+                    }
+                    
+                    // 编辑按钮（仅自定义音效包）
+                    if pack.author == "用户" {
+                        Button(action: onEdit) {
+                            HStack {
+                                Image(systemName: "pencil")
+                                Text("编辑")
+                            }
+                            .font(.system(size: 14, weight: .medium))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.purple.opacity(0.3))
+                            .foregroundColor(.white)
+                            .cornerRadius(6)
+                        }
                     }
                     
                     Button(action: onUninstall) {
@@ -451,11 +722,11 @@ struct SoundPackCard: View {
                             Text("卸载")
                         }
                         .font(.system(size: 14, weight: .medium))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
                         .background(Color.red.opacity(0.3))
                         .foregroundColor(.white)
-                        .cornerRadius(8)
+                        .cornerRadius(6)
                     }
                 } else {
                     // 未安装状态
@@ -465,11 +736,11 @@ struct SoundPackCard: View {
                             Text("安装")
                         }
                         .font(.system(size: 14, weight: .medium))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
                         .background(Color.orange.opacity(0.3))
                         .foregroundColor(.white)
-                        .cornerRadius(8)
+                        .cornerRadius(6)
                     }
                     
                     // 预览按钮（即使未安装也可以试听）
@@ -479,11 +750,11 @@ struct SoundPackCard: View {
                             Text("预览")
                         }
                         .font(.system(size: 14, weight: .medium))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
                         .background(Color.purple.opacity(0.3))
                         .foregroundColor(.white)
-                        .cornerRadius(8)
+                        .cornerRadius(6)
                     }
                 }
                 
@@ -506,7 +777,6 @@ struct SoundPackCard: View {
 }
 
 // MARK: - 预览
-
 struct SoundPackStoreView_Previews: PreviewProvider {
     static var previews: some View {
         SoundPackStoreView()

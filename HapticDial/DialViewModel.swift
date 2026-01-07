@@ -2,6 +2,7 @@
 import Foundation
 import Combine
 import CoreGraphics
+import AVFoundation
 
 class DialViewModel: ObservableObject {
     @Published var currentMode: DialMode = .ratchet
@@ -141,6 +142,11 @@ class DialViewModel: ObservableObject {
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     let velocity = self.physicsSimulator.hapticIntensityForCurrentVelocity()
                     self.hapticManager.playClick(velocity: Double(min(velocity, 0.8)))
+                    
+                    // 播放声音（如果启用）
+                    if self.soundEnabled {
+                        self.playSoundForNotch()
+                    }
                 }
             }
             
@@ -148,7 +154,53 @@ class DialViewModel: ObservableObject {
             lastNotchAngle = lastNotchAngle + Double(notchesCrossed) * notchInterval * (deltaAngle > 0 ? 1 : -1)
         }
     }
-    
+
+    // 新增方法：播放刻度声音
+    private func playSoundForNotch() {
+        // 如果有自定义声音包，使用自定义声音包
+        if let packId = hapticManager.currentCustomSoundPack {
+            playCustomSoundFromPack(packId)
+            return
+        }
+        
+        // 否则使用HapticManager默认的声音
+        // 注意：需要确保HapticManager中的playSoundForCurrentMode方法是public或internal
+        hapticManager.playSoundForCurrentMode()
+    }
+
+    // 从自定义声音包播放声音
+    private func playCustomSoundFromPack(_ packId: String) {
+        // 根据模式选择声音
+        let soundName = currentMode == .ratchet ? "ratchet_notch" : "aperture_notch"
+        
+        if let soundURL = SoundPackManager.shared.getSoundFileURL(forSoundPack: packId, soundName: soundName) {
+            playAudioFromURL(soundURL)
+        } else {
+            // 尝试播放click声音
+            if let clickURL = SoundPackManager.shared.getSoundFileURL(forSoundPack: packId, soundName: "click") {
+                playAudioFromURL(clickURL)
+            } else {
+                // 回退到HapticManager默认声音
+                hapticManager.playSoundForCurrentMode()
+            }
+        }
+    }
+
+    // 播放音频的辅助方法
+    private func playAudioFromURL(_ url: URL) {
+        do {
+            let player = try AVAudioPlayer(contentsOf: url)
+            player.volume = Float(hapticManager.volume)
+            player.prepareToPlay()
+            player.currentTime = 0
+            player.play()
+        } catch {
+            print("❌ 播放自定义音频失败: \(error)")
+            // 回退到HapticManager默认声音
+            hapticManager.playSoundForCurrentMode()
+        }
+    }
+
     func resetStats() {
         totalRotation = 0
         lastEffectRotation = 0

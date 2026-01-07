@@ -273,11 +273,81 @@ class HapticManager: NSObject, ObservableObject {
     
     // MARK: - 声音播放
     
-    private func playSoundForCurrentMode() {
+    public func playSoundForCurrentMode() {
         guard customSoundMode != .silent else { return }
         
-        // 根据模式选择声音
+        // 如果有自定义声音包，优先使用自定义声音包
+        if let packId = currentCustomSoundPack {
+            playCustomSound(fromPack: packId, forMode: customSoundMode)
+            return
+        }
+        
+        // 否则按照原来的模式播放
         switch customSoundMode {
+        case .default:
+            playSystemSound()
+        case .mechanical:
+            playMechanicalSound()
+        case .digital:
+            playDigitalSound()
+        case .natural:
+            playNaturalSound()
+        case .futuristic:
+            playFuturisticSound()
+        case .silent:
+            break
+        }
+    }
+    
+    // 新增方法：从自定义声音包播放声音
+    private func playCustomSound(fromPack packId: String, forMode mode: CustomSoundMode) {
+        guard volume > 0 else { return }
+        
+        // 根据模式选择声音文件名
+        let soundName = getSoundNameForMode(mode)
+        
+        // 尝试从声音包中获取声音文件
+        if let soundURL = soundPackManager.getSoundFileURL(forSoundPack: packId, soundName: soundName) {
+            playAudioFromURL(soundURL)
+        } else {
+            // 如果找不到，尝试播放默认的click声音
+            if let defaultURL = soundPackManager.getSoundFileURL(forSoundPack: packId, soundName: "click") {
+                playAudioFromURL(defaultURL)
+            } else if let firstSound = soundPackManager.installedSoundPacks.first(where: { $0.id == packId })?.sounds.first {
+                // 播放音效包中的第一个声音
+                if let firstSoundURL = soundPackManager.getSoundFileURL(forSoundPack: packId, soundName: firstSound.name) {
+                    playAudioFromURL(firstSoundURL)
+                } else {
+                    // 最后回退到系统声音
+                    playSystemSoundForMode(mode)
+                }
+            } else {
+                playSystemSoundForMode(mode)
+            }
+        }
+    }
+    
+    // 根据声音模式获取对应的声音文件名
+    private func getSoundNameForMode(_ mode: CustomSoundMode) -> String {
+        switch mode {
+        case .default:
+            return currentMode == .ratchet ? "ratchet_click" : "aperture_click"
+        case .mechanical:
+            return "mechanical_click"
+        case .digital:
+            return "digital_click"
+        case .natural:
+            return "natural_click"
+        case .futuristic:
+            return "futuristic_click"
+        case .silent:
+            return ""
+        }
+    }
+    
+    // 为系统声音模式选择对应的声音
+    private func playSystemSoundForMode(_ mode: CustomSoundMode) {
+        switch mode {
         case .default:
             playSystemSound()
         case .mechanical:
@@ -817,51 +887,5 @@ class HapticManager: NSObject, ObservableObject {
     
     func getAvailableSoundModes() -> [String] {
         return CustomSoundMode.allCases.map { $0.rawValue }
-    }
-    
-    // MARK: - 清理
-    
-    func cleanup() {
-        customSoundPlayers.removeAll()
-        
-        do {
-            try engine?.stop()
-        } catch {
-            print("停止触觉引擎失败: \(error)")
-        }
-        
-        engine = nil
-        isEngineStarted = false
-        
-        print("🧹 HapticManager 清理完成")
-    }
-    
-    deinit {
-        cleanup()
-    }
-}
-
-// MARK: - 扩展支持
-
-extension HapticManager {
-    // 添加声音包测试功能
-    func quickTestSound(_ soundName: String) {
-        // 尝试从当前自定义包播放
-        if let packId = currentCustomSoundPack {
-            playCustomSound(named: soundName, fromPack: packId)
-        } else {
-            // 尝试从所有包中查找
-            for pack in customSoundPacks {
-                if let soundFiles = pack.soundFiles,
-                   soundFiles.contains("\(soundName).caf") {
-                    playCustomSound(named: soundName, fromPack: pack.id)
-                    return
-                }
-            }
-            
-            // 没有找到，播放系统声音
-            print("⚠️ 未找到声音 '\(soundName)'，播放系统声音")
-            playSystemSound()
-        }
     }
 }

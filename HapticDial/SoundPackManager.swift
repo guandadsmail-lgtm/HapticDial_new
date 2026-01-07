@@ -1,9 +1,10 @@
-// Managers/SoundPackManager.swift - 修复版
+// Managers/SoundPackManager.swift - 完整修复版 + 上传功能
 import Foundation
 import Combine
 import Zip
 import UniformTypeIdentifiers
 import SwiftUI
+import MobileCoreServices
 
 class SoundPackManager: ObservableObject {
     static let shared = SoundPackManager()
@@ -187,6 +188,54 @@ class SoundPackManager: ObservableObject {
             throw NSError(domain: "SoundPackManager", code: 2,
                          userInfo: [NSLocalizedDescriptionKey: "解析 manifest.json 失败: \(error.localizedDescription)"])
         }
+    }
+    
+    // MARK: - 音效上传功能
+    
+    func createCustomSoundPackWithSounds(name: String, description: String = "", soundURLs: [URL]) async throws -> SoundPack {
+        print("📦 创建自定义音效包: \(name)")
+        
+        // 创建音效包
+        let pack = try createSoundPack(name: name, description: description, author: "用户")
+        
+        // 添加音效文件
+        for soundURL in soundURLs {
+            do {
+                let sound = try addSound(to: pack, soundURL: soundURL)
+                print("✅ 添加音效: \(sound.name)")
+            } catch {
+                print("⚠️ 添加音效失败: \(error)")
+                // 继续添加其他文件
+            }
+        }
+        
+        // 刷新列表
+        refreshAll()
+        
+        return pack
+    }
+    
+    func uploadSoundToExistingPack(_ packId: String, soundURL: URL) async throws -> Sound {
+        guard let pack = installedSoundPacks.first(where: { $0.id == packId }) else {
+            throw NSError(domain: "SoundPackManager", code: 102, userInfo: [NSLocalizedDescriptionKey: "未找到音效包"])
+        }
+        
+        let sound = try addSound(to: pack, soundURL: soundURL)
+        refreshAll()
+        
+        return sound
+    }
+    
+    // 添加这个方法用于获取支持的文件类型
+    static var supportedAudioUTIs: [UTType] {
+        return [
+            UTType(filenameExtension: "mp3")!,
+            UTType(filenameExtension: "wav")!,
+            UTType(filenameExtension: "m4a")!,
+            UTType(filenameExtension: "caf")!,
+            UTType(filenameExtension: "aac")!,
+            UTType.audio
+        ]
     }
     
     // MARK: - 安装功能（修复安装无响应问题）

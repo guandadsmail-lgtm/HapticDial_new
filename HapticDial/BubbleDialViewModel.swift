@@ -346,8 +346,17 @@ class BubbleDialViewModel: ObservableObject {
         }
     }
     
+    // ViewModels/BubbleDialViewModel.swift - 修改声音播放逻辑
+    // ... 前面的代码保持不变 ...
+
     private func playTapSound(forSpeed timeSinceLastTap: TimeInterval) {
-        // 根据点击速度选择不同的声音
+        // 如果有自定义声音包，优先使用
+        if let packId = hapticManager.currentCustomSoundPack {
+            playCustomSoundFromPack(packId, forSpeed: timeSinceLastTap)
+            return
+        }
+        
+        // 否则使用原来的逻辑
         let soundMode = hapticManager.customSoundMode
         
         switch soundMode {
@@ -410,6 +419,56 @@ class BubbleDialViewModel: ObservableObject {
             break // 无声音
         }
     }
+
+    // 新增方法：从自定义声音包播放声音
+    private func playCustomSoundFromPack(_ packId: String, forSpeed timeSinceLastTap: TimeInterval) {
+        // 根据点击速度选择不同的声音
+        let soundName: String
+        
+        if timeSinceLastTap < 0.1 {
+            soundName = "fast_click"
+        } else if timeSinceLastTap < 0.3 {
+            soundName = "normal_click"
+        } else {
+            soundName = "slow_click"
+        }
+        
+        // 尝试播放特定声音
+        if let soundURL = SoundPackManager.shared.getSoundFileURL(forSoundPack: packId, soundName: soundName) {
+            playAudioFromURL(soundURL)
+        } else {
+            // 尝试播放click声音
+            if let clickURL = SoundPackManager.shared.getSoundFileURL(forSoundPack: packId, soundName: "click") {
+                playAudioFromURL(clickURL)
+            } else {
+                // 播放音效包中的第一个声音
+                if let pack = SoundPackManager.shared.installedSoundPacks.first(where: { $0.id == packId }),
+                   let firstSound = pack.sounds.first,
+                   let firstSoundURL = SoundPackManager.shared.getSoundFileURL(forSoundPack: packId, soundName: firstSound.name) {
+                    playAudioFromURL(firstSoundURL)
+                } else {
+                    // 最后回退到默认系统声音
+                    AudioServicesPlaySystemSound(systemClickSoundID)
+                }
+            }
+        }
+    }
+
+    // 播放音频的辅助方法
+    private func playAudioFromURL(_ url: URL) {
+        do {
+            let player = try AVAudioPlayer(contentsOf: url)
+            player.volume = Float(hapticManager.volume)
+            player.prepareToPlay()
+            player.currentTime = 0
+            player.play()
+        } catch {
+            print("❌ 播放自定义音频失败: \(error)")
+            AudioServicesPlaySystemSound(systemClickSoundID)
+        }
+    }
+
+    // ... 后面的代码保持不变 ...
     
     private func playStreakSound() {
         let soundMode = hapticManager.customSoundMode

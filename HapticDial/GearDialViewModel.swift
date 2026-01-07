@@ -21,6 +21,7 @@ class GearDialViewModel: ObservableObject {
     // 智能效果管理器引用
     private let smartEffectsManager = SmartEffectsManager.shared
     private let hapticManager = HapticManager.shared
+    private let unifiedSoundManager = UnifiedSoundManager.shared // 添加统一音效管理器
     
     // 连击奖励
     private let streakThreshold = 5
@@ -69,10 +70,10 @@ class GearDialViewModel: ObservableObject {
         }
         
         // 监听设置变化
-        hapticManager.$customSoundMode
+        hapticManager.$isEnabled
             .sink { [weak self] _ in
-                // 声音模式变化时更新声音设置
-                print("🎵 齿轮声音模式已更新")
+                // 触感启用状态变化时处理
+                print("🎵 齿轮触感状态已更新")
             }
             .store(in: &cancellables)
     }
@@ -127,12 +128,10 @@ class GearDialViewModel: ObservableObject {
         // 主触感反馈
         hapticManager.playClick(velocity: hapticVelocity)
         
-        // 播放声音（如果启用）
-        if hapticManager.customSoundMode != .silent {
-            playSpinSound(forSpeed: timeSinceLastSpin)
-        }
+        // 播放声音（如果启用）- 使用统一音效管理器
+        playSpinSound(forSpeed: timeSinceLastSpin)
         
-        // 旋转动画 - 修复：移除不必要的self.
+        // 旋转动画
         withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
             rotationAngle += 360
             totalRotation += 360
@@ -177,8 +176,8 @@ class GearDialViewModel: ObservableObject {
         // 播放重置触感
         hapticManager.playCustomPattern(.doubleClick)
         
-        // 播放重置声音（如果启用）
-        if hapticManager.customSoundMode != .silent {
+        // 播放重置声音（如果启用）- 使用统一音效管理器
+        if unifiedSoundManager.isSoundEnabled() {
             AudioServicesPlaySystemSound(systemPopSoundID)
         }
         
@@ -239,7 +238,7 @@ class GearDialViewModel: ObservableObject {
         hapticManager.playCustomPattern(pattern)
         
         // 如果启用了声音，播放连击音效
-        if hapticManager.customSoundMode != .silent {
+        if unifiedSoundManager.isSoundEnabled() {
             playStreakSound()
         }
         
@@ -306,124 +305,48 @@ class GearDialViewModel: ObservableObject {
     }
     
     private func playSpinSound(forSpeed timeSinceLastSpin: TimeInterval) {
-        // 根据旋转速度选择不同的声音
-        let soundMode = hapticManager.customSoundMode
+        // 使用统一音效管理器播放声音
+        guard unifiedSoundManager.isSoundEnabled() else { return }
         
-        switch soundMode {
-        case .default:
-            // 使用默认系统声音 - HapticManager会自动处理
-            break
-            
-        case .mechanical:
-            if timeSinceLastSpin < 0.3 {
-                AudioServicesPlaySystemSound(systemTickSoundID)
-            } else {
-                AudioServicesPlaySystemSound(systemClickSoundID)
-            }
-            
-        case .digital:
-            if timeSinceLastSpin < 0.3 {
-                AudioServicesPlaySystemSound(digitalTickSoundID)
-            } else {
-                AudioServicesPlaySystemSound(digitalClickSoundID)
-            }
-            
-        case .natural:
-            if spinCount % 3 == 0 {
-                AudioServicesPlaySystemSound(systemWaterSoundID)
-            } else if spinCount % 3 == 1 {
-                AudioServicesPlaySystemSound(systemWoodSoundID)
-            } else {
-                AudioServicesPlaySystemSound(systemPopSoundID)
-            }
-            
-        case .futuristic:
-            if timeSinceLastSpin < 0.4 {
-                AudioServicesPlaySystemSound(systemLaserSoundID)
-            } else {
-                AudioServicesPlaySystemSound(systemSynthSoundID)
-            }
-            
-        case .silent:
-            break // 无声音
+        // 直接播放选中的音效
+        if let selectedSound = unifiedSoundManager.selectedSound {
+            unifiedSoundManager.playSound(selectedSound)
         }
     }
     
     private func playStreakSound() {
-        let soundMode = hapticManager.customSoundMode
+        guard unifiedSoundManager.isSoundEnabled() else { return }
         
-        switch soundMode {
-        case .mechanical:
-            AudioServicesPlaySystemSound(systemPopSoundID)
-        case .digital:
-            AudioServicesPlaySystemSound(digitalPopSoundID)
-        case .natural:
-            AudioServicesPlaySystemSound(systemPopSoundID)
-        case .futuristic:
-            AudioServicesPlaySystemSound(systemEnergySoundID)
-        default:
-            break
+        // 播放连击声音
+        if let selectedSound = unifiedSoundManager.selectedSound {
+            unifiedSoundManager.playSound(selectedSound)
         }
     }
     
     private func playCelebrationSound() {
-        let soundMode = hapticManager.customSoundMode
+        guard unifiedSoundManager.isSoundEnabled() else { return }
         
-        switch soundMode {
-        case .default, .mechanical, .natural:
-            AudioServicesPlaySystemSound(systemPopSoundID)
-        case .digital:
-            AudioServicesPlaySystemSound(digitalPopSoundID)
-        case .futuristic:
-            AudioServicesPlaySystemSound(systemEnergySoundID)
-        case .silent:
-            break
+        // 播放庆祝声音
+        if let selectedSound = unifiedSoundManager.selectedSound {
+            unifiedSoundManager.playSound(selectedSound)
         }
     }
     
     private func playSpecialAchievementSound() {
-        let soundMode = hapticManager.customSoundMode
+        guard unifiedSoundManager.isSoundEnabled() else { return }
         
         // 播放成就庆祝声音序列
-        switch soundMode {
-        case .default, .mechanical:
-            AudioServicesPlaySystemSound(systemClickSoundID)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                AudioServicesPlaySystemSound(self.systemTickSoundID)
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                AudioServicesPlaySystemSound(self.systemPopSoundID)
-            }
+        if let selectedSound = unifiedSoundManager.selectedSound {
+            unifiedSoundManager.playSound(selectedSound)
             
-        case .digital:
-            AudioServicesPlaySystemSound(digitalClickSoundID)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                AudioServicesPlaySystemSound(self.digitalTickSoundID)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                guard let self = self else { return }
+                self.unifiedSoundManager.playSound(selectedSound)
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                AudioServicesPlaySystemSound(self.digitalPopSoundID)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                guard let self = self else { return }
+                self.unifiedSoundManager.playSound(selectedSound)
             }
-            
-        case .natural:
-            AudioServicesPlaySystemSound(systemWaterSoundID)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                AudioServicesPlaySystemSound(self.systemWoodSoundID)
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                AudioServicesPlaySystemSound(self.systemPopSoundID)
-            }
-            
-        case .futuristic:
-            AudioServicesPlaySystemSound(systemLaserSoundID)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                AudioServicesPlaySystemSound(self.systemSynthSoundID)
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                AudioServicesPlaySystemSound(self.systemEnergySoundID)
-            }
-            
-        case .silent:
-            break
         }
     }
     

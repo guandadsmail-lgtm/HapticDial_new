@@ -10,7 +10,8 @@ class CustomSoundManager: ObservableObject {
     @Published var isLoading = false
     
     struct CustomSound: Identifiable, Codable {
-        let id = UUID()
+        // 修复：移除默认值，使用自定义编码键
+        var id: UUID
         let name: String
         let fileName: String
         let fileExtension: String
@@ -19,6 +20,30 @@ class CustomSoundManager: ObservableObject {
         
         var displayName: String {
             name.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+        
+        // 自定义编码键
+        enum CodingKeys: String, CodingKey {
+            case id, name, fileName, fileExtension, category, duration
+        }
+        
+        init(id: UUID = UUID(), name: String, fileName: String, fileExtension: String, category: String, duration: TimeInterval?) {
+            self.id = id
+            self.name = name
+            self.fileName = fileName
+            self.fileExtension = fileExtension
+            self.category = category
+            self.duration = duration
+        }
+        
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+            name = try container.decode(String.self, forKey: .name)
+            fileName = try container.decode(String.self, forKey: .fileName)
+            fileExtension = try container.decode(String.self, forKey: .fileExtension)
+            category = try container.decode(String.self, forKey: .category)
+            duration = try container.decodeIfPresent(TimeInterval.self, forKey: .duration)
         }
     }
     

@@ -8,43 +8,35 @@ import CoreGraphics
 class HapticManager: NSObject, ObservableObject {
     static let shared = HapticManager()
     
+    // 移除原有的声音模式相关属性，使用统一音效管理器
+    private let unifiedSoundManager = UnifiedSoundManager.shared
+    
+    // 保留原有属性
     private var engine: CHHapticEngine?
     private var continuousPlayer: CHHapticPatternPlayer?
     private var isEngineStarted = false
-    
-    // 音频播放器
     private var customSoundPlayers: [String: AVAudioPlayer] = [:]
     
     // 基本设置
     @Published var currentMode: DialMode = .ratchet
     @Published var isEnabled = true
-    @Published var volume: Float = 0.5  // 默认音量50%
-    @Published var hapticIntensity: Float = 0.7  // 默认触感强度70%
+    @Published var volume: Float = 0.5
+    @Published var hapticIntensity: Float = 0.7
     
-    // 自定义模式
+    // 自定义触感模式（保留）
     @Published var customHapticMode: CustomHapticMode = .default
-    @Published var customSoundMode: CustomSoundMode = .default
-    
-    // 系统声音 ID
-    private let ratchetSoundID: SystemSoundID = 1104  // 轻微点击声
-    private let apertureSoundID: SystemSoundID = 1103  // 更柔和的点击声
-    private let popSoundID: SystemSoundID = 1105      // 轻微破裂声
-    private let tickSoundID: SystemSoundID = 1100     // 滴答声
     
     // UserDefaults
     private let defaults = UserDefaults.standard
     private let volumeKey = "haptic_volume"
     private let intensityKey = "haptic_intensity"
     private let hapticModeKey = "custom_haptic_mode"
-    private let soundModeKey = "custom_sound_mode"
-    private let currentSoundPackKey = "current_sound_pack"
     
-    // MARK: - 声音包管理器
-    private let soundPackManager = SoundPackManager.shared
-    @Published var customSoundPacks: [SoundPack] = []
-    @Published var currentCustomSoundPack: String?
+    // 系统声音 ID（保留用于回退）
+    private let ratchetSoundID: SystemSoundID = 1104  // 轻微点击声
+    private let apertureSoundID: SystemSoundID = 1103  // 更柔和的点击声
     
-    // 触感模式枚举
+    // 触感模式枚举（保留）
     public enum CustomHapticMode: String, CaseIterable {
         case `default` = "Default"
         case lightClick = "Light Click"
@@ -75,28 +67,7 @@ class HapticManager: NSObject, ObservableObject {
         }
     }
     
-    // 声音模式枚举
-    public enum CustomSoundMode: String, CaseIterable {
-        case `default` = "Default"
-        case mechanical = "Mechanical"
-        case digital = "Digital"
-        case natural = "Natural"
-        case futuristic = "Futuristic"
-        case silent = "Silent"
-        
-        var description: String {
-            switch self {
-            case .default: return "System default sounds"
-            case .mechanical: return "Mechanical clicks and gears"
-            case .digital: return "Digital beeps and tones"
-            case .natural: return "Natural water and wood"
-            case .futuristic: return "Futuristic sci-fi sounds"
-            case .silent: return "No sounds, only haptics"
-            }
-        }
-    }
-    
-    // 触感模式枚举 - 修复为public
+    // 触感模式枚举
     public enum HapticPattern {
         case lightClick
         case mediumClick
@@ -115,12 +86,8 @@ class HapticManager: NSObject, ObservableObject {
         
         // 从UserDefaults加载设置
         loadSettings()
-        
         prepareHaptics()
         setupAudioSession()
-        
-        // 加载自定义声音包
-        loadCustomSoundPacks()
         
         print("🎛️ HapticManager 初始化完成")
     }
@@ -133,20 +100,6 @@ class HapticManager: NSObject, ObservableObject {
            let mode = CustomHapticMode(rawValue: savedHapticMode) {
             customHapticMode = mode
         }
-        
-        if let savedSoundMode = defaults.string(forKey: soundModeKey),
-           let mode = CustomSoundMode(rawValue: savedSoundMode) {
-            customSoundMode = mode
-        }
-        
-        if let savedSoundPack = defaults.string(forKey: currentSoundPackKey) {
-            currentCustomSoundPack = savedSoundPack
-        }
-    }
-    
-    private func loadCustomSoundPacks() {
-        customSoundPacks = soundPackManager.installedSoundPacks
-        print("📦 加载了 \(customSoundPacks.count) 个自定义声音包")
     }
     
     private func prepareHaptics() {
@@ -199,7 +152,7 @@ class HapticManager: NSObject, ObservableObject {
     // MARK: - 主要触感播放方法
     
     func playClick(velocity: Double = 1.0) {
-        guard isEnabled, let _ = engine, isEngineStarted else { return }
+        guard isEnabled, isEngineStarted else { return }
         
         // 根据自定义模式选择触感
         let floatVelocity = Float(velocity)
@@ -229,8 +182,8 @@ class HapticManager: NSObject, ObservableObject {
             playCustomPattern(.wobble, velocity: floatVelocity)
         }
         
-        // 播放对应的声音
-        playSoundForCurrentMode()
+        // 播放对应的声音（使用统一音效管理器）
+        playSoundForCurrentSelection()
     }
     
     private func playDefaultHaptic(velocity: Float) {
@@ -271,246 +224,84 @@ class HapticManager: NSObject, ObservableObject {
         }
     }
     
-    // MARK: - 声音播放
+    // MARK: - 声音播放（使用统一音效管理器）
     
-    public func playSoundForCurrentMode() {
-        guard customSoundMode != .silent, volume > 0 else { return }
+    private func playSoundForCurrentSelection() {
+        guard volume > 0 else { return }
         
-        // 如果有自定义声音包，优先使用自定义声音包
-        if let packId = currentCustomSoundPack {
-            playCustomSound(fromPack: packId, forMode: customSoundMode)
-            return
-        }
-        
-        // 否则按照原来的模式播放
-        switch customSoundMode {
-        case .default:
-            playSystemSound()
-        case .mechanical:
-            playMechanicalSound()
-        case .digital:
-            playDigitalSound()
-        case .natural:
-            playNaturalSound()
-        case .futuristic:
-            playFuturisticSound()
-        case .silent:
-            break
+        // 使用统一音效管理器播放选中的音效
+        if let selectedSound = unifiedSoundManager.selectedSound {
+            playUnifiedSound(selectedSound)
+        } else {
+            // 如果没有选中的音效，播放回退声音
+            playFallbackSound()
         }
     }
     
-    // 新增方法：从自定义声音包播放声音
-    private func playCustomSound(fromPack packId: String, forMode mode: CustomSoundMode) {
+    private func playUnifiedSound(_ soundOption: UnifiedSoundManager.SoundOption) {
         guard volume > 0 else { return }
         
-        // 首先验证音效包是否有效
-        if !soundPackManager.validateSoundPack(packId) {
-            print("⚠️ 音效包无效，使用默认声音")
-            playSystemSoundForMode(mode)
-            return
-        }
-        
-        // 根据模式选择声音文件名
-        let soundName = getSoundNameForMode(mode)
-        
-        // 尝试从声音包中获取声音文件
-        if let soundURL = soundPackManager.getSoundFileURL(forSoundPack: packId, soundName: soundName) {
-            playAudioFromURL(soundURL)
-        } else {
-            // 如果找不到，尝试播放默认的click声音
-            if let defaultURL = soundPackManager.getSoundFileURL(forSoundPack: packId, soundName: "click") {
-                playAudioFromURL(defaultURL)
-            } else if let firstSound = soundPackManager.installedSoundPacks.first(where: { $0.id == packId })?.sounds.first {
-                // 播放音效包中的第一个声音
-                if let firstSoundURL = soundPackManager.getSoundFileURL(forSoundPack: packId, soundName: firstSound.name) {
-                    playAudioFromURL(firstSoundURL)
-                } else {
-                    // 最后回退到系统声音
-                    playSystemSoundForMode(mode)
-                }
+        switch soundOption.type {
+        case .system:
+            if let soundID = soundOption.systemSoundID {
+                // 播放系统声音
+                AudioServicesPlaySystemSound(soundID)
             } else {
-                playSystemSoundForMode(mode)
+                // 静音模式
+                return
+            }
+        case .custom:
+            if let soundFile = soundOption.soundFile {
+                playCustomAudioFile(soundFile)
+            } else {
+                // 如果自定义音效文件为空，回退到系统声音
+                playFallbackSound()
             }
         }
     }
     
-    // 根据声音模式获取对应的声音文件名
-    private func getSoundNameForMode(_ mode: CustomSoundMode) -> String {
-        switch mode {
-        case .default:
-            return currentMode == .ratchet ? "ratchet_click" : "aperture_click"
-        case .mechanical:
-            return "mechanical_click"
-        case .digital:
-            return "digital_click"
-        case .natural:
-            return "natural_click"
-        case .futuristic:
-            return "futuristic_click"
-        case .silent:
-            return ""
+    private func playCustomAudioFile(_ soundFile: String) {
+        // 从声音包中查找并播放音效
+        for soundPack in SoundPackManager.shared.installedSoundPacks {
+            if let soundFiles = soundPack.soundFiles,
+               soundFiles.contains(soundFile),
+               let soundURL = SoundPackManager.shared.getSoundFileURL(forSoundPack: soundPack.id, soundName: soundFile.replacingOccurrences(of: ".caf", with: "")) {
+                
+                do {
+                    let player: AVAudioPlayer
+                    if let existingPlayer = customSoundPlayers[soundURL.absoluteString] {
+                        player = existingPlayer
+                    } else {
+                        player = try AVAudioPlayer(contentsOf: soundURL)
+                        player.prepareToPlay()
+                        customSoundPlayers[soundURL.absoluteString] = player
+                    }
+                    
+                    player.volume = volume
+                    player.currentTime = 0
+                    player.play()
+                    
+                } catch {
+                    print("❌ 播放自定义音频失败: \(error)")
+                    // 回退到系统声音
+                    playFallbackSound()
+                }
+                return
+            }
         }
-    }
-    
-    // 为系统声音模式选择对应的声音
-    private func playSystemSoundForMode(_ mode: CustomSoundMode) {
-        switch mode {
-        case .default:
-            playSystemSound()
-        case .mechanical:
-            playMechanicalSound()
-        case .digital:
-            playDigitalSound()
-        case .natural:
-            playNaturalSound()
-        case .futuristic:
-            playFuturisticSound()
-        case .silent:
-            break
-        }
-    }
-    
-    private func playSystemSound() {
-        guard volume > 0 else { return }
         
+        // 如果没有找到自定义音效，回退到系统声音
+        playFallbackSound()
+    }
+    
+    private func playFallbackSound() {
+        // 回退到系统默认声音
         let soundID = currentMode == .ratchet ? ratchetSoundID : apertureSoundID
         AudioServicesPlaySystemSound(soundID)
     }
     
-    private func playMechanicalSound() {
-        guard volume > 0 else { return }
-        
-        let soundID: SystemSoundID
-        switch currentMode {
-        case .ratchet:
-            soundID = 1104  // 机械点击声
-        case .aperture:
-            soundID = 1103  // 机械滴答声
-        }
-        AudioServicesPlaySystemSound(soundID)
-    }
-    
-    private func playDigitalSound() {
-        guard volume > 0 else { return }
-        
-        let soundID: SystemSoundID
-        switch currentMode {
-        case .ratchet:
-            soundID = 1057  // 数字点击声
-        case .aperture:
-            soundID = 1053  // 数字滴答声
-        }
-        AudioServicesPlaySystemSound(soundID)
-    }
-    
-    private func playNaturalSound() {
-        guard volume > 0 else { return }
-        
-        let soundID: SystemSoundID = 1105  // 水滴声/自然声
-        AudioServicesPlaySystemSound(soundID)
-    }
-    
-    private func playFuturisticSound() {
-        guard volume > 0 else { return }
-        
-        let soundID: SystemSoundID = 4095  // 科幻声
-        AudioServicesPlaySystemSound(soundID)
-    }
-    
-    // MARK: - 自定义声音播放
-    
-    func playCustomSound(named soundName: String, fromPack packId: String? = nil) {
-        guard volume > 0 else { return }
-        
-        // 如果没有指定包ID，使用当前自定义包
-        let effectivePackId = packId ?? currentCustomSoundPack
-        
-        if let packId = effectivePackId,
-           let soundURL = soundPackManager.getSoundFileURL(forSoundPack: packId, soundName: soundName) {
-            playAudioFromURL(soundURL)
-        } else {
-            // 尝试加载内置或系统声音
-            if let url = getBuiltInSoundURL(soundName) {
-                playAudioFromURL(url)
-            } else {
-                print("⚠️ 未找到内置声音文件: \(soundName)，使用系统默认声音")
-                playSystemSound()
-            }
-        }
-    }
-    
-    // 修改后的内置声音查找方法
-    private func getBuiltInSoundURL(_ soundName: String) -> URL? {
-        // 首先尝试加载项目中已有的声音文件
-        let possibleExtensions = ["caf", "wav", "mp3", "m4a"]
-        
-        for ext in possibleExtensions {
-            if let path = Bundle.main.path(forResource: soundName, ofType: ext) {
-                return URL(fileURLWithPath: path)
-            }
-        }
-        
-        // 如果找不到，尝试加载我们生成的示例声音
-        if let url = AudioResources.shared.getAudioURL(for: soundName) {
-            return url
-        }
-        
-        // 尝试常见的内置声音映射
-        let soundMapping: [String: SystemSoundID] = [
-            "click": 1104,
-            "tick": 1103,
-            "pop": 1105,
-            "beep": 1057,
-            "tone": 1053,
-            "blip": 1055,
-            "laser": 4095,
-            "synth": 4094,
-            "energy": 4097,
-            "water_drop": 1005,
-            "wood_tap": 1100
-        ]
-        
-        if let soundID = soundMapping[soundName] {
-            print("🎵 使用系统声音ID: \(soundID) 作为 \(soundName)")
-            // 返回一个虚拟URL，表示使用了系统声音
-            return URL(string: "system://\(soundID)")
-        }
-        
-        return nil
-    }
-    
-    private func playAudioFromURL(_ url: URL) {
-        // 如果是系统声音URL，直接播放系统声音
-        if url.scheme == "system", let soundIDString = url.host, let soundIDValue = UInt32(soundIDString) {
-            let soundID = SystemSoundID(soundIDValue)
-            AudioServicesPlaySystemSound(soundID)
-            return
-        }
-        
-        do {
-            // 重用或创建播放器
-            let player: AVAudioPlayer
-            if let existingPlayer = customSoundPlayers[url.absoluteString] {
-                player = existingPlayer
-            } else {
-                player = try AVAudioPlayer(contentsOf: url)
-                player.prepareToPlay()
-                customSoundPlayers[url.absoluteString] = player
-            }
-            
-            player.volume = volume
-            player.currentTime = 0
-            player.play()
-            
-        } catch {
-            print("❌ 播放音频失败: \(error)")
-            playSystemSound() // 失败时回退到系统声音
-        }
-    }
-    
     // MARK: - 自定义触感模式
     
-    // 修复访问级别为public，并修复参数类型
     public func playCustomPattern(_ pattern: HapticPattern, velocity: Float = 1.0) {
         guard let engine = engine, isEngineStarted else { return }
         
@@ -653,110 +444,37 @@ class HapticManager: NSObject, ObservableObject {
         return events
     }
     
-    // MARK: - 声音包管理方法
+    // MARK: - 获取当前音效信息（用于界面显示）
     
-    func getSoundPackSounds(_ packId: String) -> [String] {
-        guard let pack = customSoundPacks.first(where: { $0.id == packId }) else {
-            return []
-        }
-        return pack.soundFiles ?? []
+    func getCurrentSoundName() -> String {
+        return unifiedSoundManager.getCurrentSoundName()
     }
     
-    func testSoundPack(_ packId: String) {
-        print("🎵 测试声音包: \(packId)")
-        
-        // 首先验证音效包
-        if !soundPackManager.validateSoundPack(packId) {
-            print("❌ 音效包无效，使用默认测试序列")
-            playDefaultTestSequence()
-            return
-        }
-        
-        // 首先尝试从已安装的声音包中获取声音
-        guard let pack = customSoundPacks.first(where: { $0.id == packId }) else {
-            print("❌ 未找到声音包: \(packId)")
-            playDefaultTestSequence()
-            return
-        }
-        
-        let sounds = pack.sounds
-        
-        if sounds.isEmpty {
-            print("⚠️ 声音包为空，使用默认测试序列")
-            playDefaultTestSequence()
-            return
-        }
-        
-        print("🎵 播放声音包预览，包含 \(sounds.count) 个声音")
-        
-        // 播放前3个声音作为预览
-        let previewSounds = Array(sounds.prefix(3))
-        
-        for (index, sound) in previewSounds.enumerated() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.5) {
-                print("▶️ 播放: \(sound.name) (文件: \(sound.fileName))")
-                self.playCustomSound(named: sound.name, fromPack: packId)
-            }
-        }
+    func isSoundEnabled() -> Bool {
+        return unifiedSoundManager.isSoundEnabled()
     }
     
-    // 修复默认测试序列
-    private func playDefaultTestSequence() {
-        print("🔊 播放默认测试序列")
-        
-        // 使用系统声音进行测试，确保总是有声音
-        let testSounds = [
-            (name: "系统点击1", soundID: SystemSoundID(1104)),
-            (name: "系统点击2", soundID: SystemSoundID(1103)),
-            (name: "系统弹出", soundID: SystemSoundID(1105))
-        ]
-        
-        for (index, sound) in testSounds.enumerated() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 0.3) {
-                print("🔊 测试 \(sound.name) (ID: \(sound.soundID))")
-                AudioServicesPlaySystemSound(sound.soundID)
-            }
-        }
-    }
+    // MARK: - 设置管理
     
-    // 批量播放声音包中的声音
-    func playSoundPackPreview(_ packId: String, interval: TimeInterval = 0.5) {
-        let sounds = getSoundPackSounds(packId)
-        
-        if sounds.isEmpty {
-            print("❌ 声音包为空")
-            return
-        }
-        
-        print("🎵 预览声音包: \(packId)")
-        
-        // 只播放前3个声音作为预览
-        let previewSounds = Array(sounds.prefix(3))
-        
-        for (index, soundFile) in previewSounds.enumerated() {
-            let soundName = soundFile.replacingOccurrences(of: ".caf", with: "")
-                .replacingOccurrences(of: ".wav", with: "")
-                .replacingOccurrences(of: ".mp3", with: "")
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * interval) {
-                self.playCustomSound(named: soundName, fromPack: packId)
-            }
-        }
-    }
-    
-    func refreshSoundPacks() {
-        customSoundPacks = soundPackManager.installedSoundPacks
-        print("🔄 刷新声音包列表，当前有 \(customSoundPacks.count) 个声音包")
-    }
-    
-    func setCurrentSoundPack(_ packId: String?) {
-        currentCustomSoundPack = packId
-        defaults.set(packId, forKey: currentSoundPackKey)
+    func setCustomHapticMode(_ mode: CustomHapticMode) {
+        customHapticMode = mode
+        defaults.set(mode.rawValue, forKey: hapticModeKey)
         defaults.synchronize()
-        print("📦 设置当前声音包: \(packId ?? "None")")
     }
     
-    // MARK: - 测试方法
+    func setVolume(_ value: Float) {
+        volume = value
+        defaults.set(value, forKey: volumeKey)
+        defaults.synchronize()
+    }
+    
+    func setHapticIntensity(_ value: Float) {
+        hapticIntensity = value
+        defaults.set(value, forKey: intensityKey)
+        defaults.synchronize()
+    }
+    
+    // MARK: - 测试方法（移除声音模式测试）
     
     func testHapticMode(_ mode: CustomHapticMode) {
         switch mode {
@@ -783,64 +501,6 @@ class HapticManager: NSObject, ObservableObject {
         case .wobble:
             playCustomPattern(.wobble, velocity: 1.0)
         }
-    }
-    
-    func testSoundMode(_ mode: CustomSoundMode) {
-        switch mode {
-        case .default:
-            playSystemSound()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                AudioServicesPlaySystemSound(SystemSoundID(1103)) // 另一个机械声
-            }
-        case .mechanical:
-            playMechanicalSound()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                AudioServicesPlaySystemSound(SystemSoundID(1103)) // 另一个机械声
-            }
-        case .digital:
-            playDigitalSound()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                AudioServicesPlaySystemSound(SystemSoundID(1053)) // 另一个数字声
-            }
-        case .natural:
-            playNaturalSound()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                AudioServicesPlaySystemSound(SystemSoundID(1105)) // 另一个自然声
-            }
-        case .futuristic:
-            playFuturisticSound()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                AudioServicesPlaySystemSound(SystemSoundID(4095)) // 另一个科幻声
-            }
-        case .silent:
-            print("🔇 静音模式")
-        }
-    }
-    
-    // MARK: - 设置管理
-    
-    func setCustomHapticMode(_ mode: CustomHapticMode) {
-        customHapticMode = mode
-        defaults.set(mode.rawValue, forKey: hapticModeKey)
-        defaults.synchronize()
-    }
-    
-    func setCustomSoundMode(_ mode: CustomSoundMode) {
-        customSoundMode = mode
-        defaults.set(mode.rawValue, forKey: soundModeKey)
-        defaults.synchronize()
-    }
-    
-    func setVolume(_ value: Float) {
-        volume = value
-        defaults.set(value, forKey: volumeKey)
-        defaults.synchronize()
-    }
-    
-    func setHapticIntensity(_ value: Float) {
-        hapticIntensity = value
-        defaults.set(value, forKey: intensityKey)
-        defaults.synchronize()
     }
     
     // MARK: - 其他方法
@@ -882,12 +542,10 @@ class HapticManager: NSObject, ObservableObject {
     }
     
     func stopContinuousHaptic() {
-        if let player = continuousPlayer {
-            do {
-                try player.stop(atTime: CHHapticTimeImmediate)
-            } catch {
-                print("停止持续触觉失败: \(error)")
-            }
+        do {
+            try continuousPlayer?.stop(atTime: CHHapticTimeImmediate)
+        } catch {
+            print("停止持续触觉失败: \(error)")
         }
     }
     
@@ -899,7 +557,20 @@ class HapticManager: NSObject, ObservableObject {
         return CustomHapticMode.allCases.map { $0.rawValue }
     }
     
-    func getAvailableSoundModes() -> [String] {
-        return CustomSoundMode.allCases.map { $0.rawValue }
+    // MARK: - 清理
+    
+    func cleanup() {
+        customSoundPlayers.removeAll()
+        
+        // 使用try? 安全地调用stop方法
+        try? engine?.stop()
+        
+        engine = nil
+        isEngineStarted = false
+        
+        print("🧹 HapticManager 清理完成")
+    }
+    deinit {
+        cleanup()
     }
 }

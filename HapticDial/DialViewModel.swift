@@ -1,4 +1,4 @@
-// ViewModels/DialViewModel.swift
+// ViewModels/DialViewModel.swift - 简化版
 import Foundation
 import Combine
 import CoreGraphics
@@ -155,70 +155,12 @@ class DialViewModel: ObservableObject {
         }
     }
 
-    // 新增方法：播放刻度声音
+    // 播放刻度声音
     private func playSoundForNotch() {
         guard soundEnabled else { return }
         
-        // 如果有自定义声音包，使用自定义声音包
-        if let packId = hapticManager.currentCustomSoundPack {
-            playCustomSoundFromPack(packId)
-            return
-        }
-        
-        // 否则使用内置声音
-        playDefaultSound()
-    }
-
-    // 从自定义声音包播放声音
-    private func playCustomSoundFromPack(_ packId: String) {
-        // 根据模式选择声音
-        let soundName = currentMode == .ratchet ? "ratchet_notch" : "aperture_notch"
-        
-        if let soundURL = SoundPackManager.shared.getSoundFileURL(forSoundPack: packId, soundName: soundName) {
-            playAudioFromURL(soundURL)
-        } else {
-            // 尝试播放click声音
-            if let clickURL = SoundPackManager.shared.getSoundFileURL(forSoundPack: packId, soundName: "click") {
-                playAudioFromURL(clickURL)
-            } else {
-                // 回退到默认声音
-                playDefaultSound()
-            }
-        }
-    }
-
-    // 播放默认内置声音
-    private func playDefaultSound() {
-        // 根据当前模式播放内置声音
-        let soundName: String
-        switch currentMode {
-        case .ratchet:
-            soundName = "mechanical_click"
-        case .aperture:
-            soundName = "digital_beep"
-        }
-        
-        if let url = Bundle.main.url(forResource: soundName, withExtension: "caf") {
-            playAudioFromURL(url)
-        } else {
-            // 如果找不到内置文件，使用HapticManager
-            hapticManager.playSoundForCurrentMode()
-        }
-    }
-
-    // 播放音频的辅助方法
-    private func playAudioFromURL(_ url: URL) {
-        do {
-            let player = try AVAudioPlayer(contentsOf: url)
-            player.volume = Float(hapticManager.volume)
-            player.prepareToPlay()
-            player.currentTime = 0
-            player.play()
-        } catch {
-            print("❌ 播放自定义音频失败: \(error)")
-            // 回退到默认声音
-            playDefaultSound()
-        }
+        // 直接调用HapticManager播放声音
+        HapticManager.shared.playClick()
     }
 
     func resetStats() {

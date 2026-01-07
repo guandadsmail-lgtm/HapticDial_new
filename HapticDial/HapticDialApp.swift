@@ -99,7 +99,6 @@ struct HapticDialApp: App {
             "haptic_intensity": 0.7,
             "effect_mode": "fireworks",
             "custom_haptic_mode": "Default",
-            "custom_sound_mode": "Default",
             "crack_sound": true,
             "smart_effects_enabled": true,
             "first_launch": true
@@ -118,7 +117,8 @@ struct HapticDialApp: App {
     private func setupAudioSession() {
         // 配置音频会话
         do {
-            try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default, options: [.mixWithOthers])
+            // 修复：移除未使用的变量
+            _ = try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default, options: [.mixWithOthers])
             try AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
             print("🎵 音频会话配置成功")
         } catch {
@@ -211,8 +211,6 @@ struct HapticDialApp: App {
     }
     
     private func checkAudioPermissions() {
-        let audioSession = AVAudioSession.sharedInstance()
-        
         // 使用新的方式检查录音权限
         switch AVAudioApplication.shared.recordPermission {
         case .granted:

@@ -88,10 +88,10 @@ class CrackManager: ObservableObject {
         print("💥 开始裂纹扩展定时器")
         
         // 30秒后停止效果
-        DispatchQueue.main.asyncAfter(deadline: .now() + crackDuration) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + crackDuration) { [weak self] in
             Task { @MainActor in
                 print("💥 30秒时间到，停止裂纹效果")
-                self.stopCracks()
+                self?.stopCracks()
             }
         }
         
@@ -166,13 +166,15 @@ class CrackManager: ObservableObject {
         // 每隔4-7秒生成下一个中心点的裂纹
         let interval = Double.random(in: 4.0...7.0)
         
+        // 解决Timer的Swift 6兼容性问题
         crackGenerationTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] timer in
             guard let self = self else {
                 timer.invalidate()
                 return
             }
             
-            Task { @MainActor in
+            // 在主线程执行
+            DispatchQueue.main.async {
                 self.currentCrackCenterIndex += 1
                 
                 if self.currentCrackCenterIndex < self.crackCenters.count {
@@ -249,13 +251,15 @@ class CrackManager: ObservableObject {
     private func startCrackExpansion() {
         timer?.invalidate()
         
+        // 解决Timer的Swift 6兼容性问题
         timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] timer in
             guard let self = self else {
                 timer.invalidate()
                 return
             }
             
-            Task { @MainActor in
+            // 在主线程执行
+            DispatchQueue.main.async {
                 // 扩展现有裂纹
                 self.expandExistingCracks()
                 
@@ -349,8 +353,9 @@ class CrackManager: ObservableObject {
             crackOpacity = 0
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             Task { @MainActor in
+                guard let self = self else { return }
                 self.showCracks = false
                 self.cracks.removeAll()
                 self.crackCenters.removeAll()
@@ -381,4 +386,3 @@ struct Crack: Identifiable {
     var animationProgress: Double // 动画进度 0.0-1.0
     var growthSpeed: Double // 裂纹生长速度
 }
-

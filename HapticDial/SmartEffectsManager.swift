@@ -19,7 +19,7 @@ class SmartEffectsManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     
     // 使用统计
-    struct UsageStatistics: Codable { // 添加Codable协议
+    struct UsageStatistics: Codable {
         var totalInteractions = 0
         var averageSpeed: TimeInterval = 0
         var favoriteTimeOfDay = ""
@@ -127,12 +127,14 @@ class SmartEffectsManager: ObservableObject {
             if hapticManager.customHapticMode != .doubleClick &&
                hapticManager.customHapticMode != .tripleClick {
                 // 可以在此添加推荐提示
+                print("💡 推荐：快速点击时使用连击模式效果更佳")
             }
         } else if avgInterval > 1.0 {
             // 慢速点击适合脉冲模式
             if hapticManager.customHapticMode != .risingPulse &&
                hapticManager.customHapticMode != .fallingPulse {
                 // 可以在此添加推荐提示
+                print("💡 推荐：慢速点击时使用脉冲模式效果更佳")
             }
         }
     }
@@ -145,15 +147,24 @@ class SmartEffectsManager: ObservableObject {
         
         // 时间敏感调整
         let hour = calendar.component(.hour, from: currentTime)
+        
         if hour >= 23 || hour <= 6 {
             // 夜间模式：减弱效果，使用柔和模式
             hapticManager.hapticIntensity = min(hapticManager.hapticIntensity, 0.4)
             hapticManager.setVolume(min(hapticManager.volume, 0.3))
             
-            // 推荐夜间友好模式
-            if hapticManager.customSoundMode != .silent &&
-               hapticManager.customSoundMode != .natural {
-                // 可以提示切换到静音或自然模式
+            // 检查当前是否在使用夜间友好模式
+            // 注意：这里需要检查 UnifiedSoundManager 或 SoundPackManager 来获取当前音效设置
+            // 由于 HapticManager 现在使用 UnifiedSoundManager，我们需要从这里获取信息
+            let unifiedSoundManager = UnifiedSoundManager.shared
+            
+            // 获取当前选中的声音类型和文件名
+            if let selectedSound = unifiedSoundManager.selectedSound {
+                // 检查是否是系统声音并且不是静音模式
+                if selectedSound.type == .system && selectedSound.systemSoundID != nil {
+                    // 如果是系统声音，可以推荐切换到静音或自然模式
+                    // 可以在这里添加推荐逻辑
+                }
             }
             
         } else if hour >= 7 && hour <= 10 {
@@ -201,6 +212,7 @@ class SmartEffectsManager: ObservableObject {
             if hapticManager.customHapticMode != .wobble &&
                hapticManager.customHapticMode != .longVibration {
                 // 推荐摇晃相关模式
+                print("💡 推荐：设备摇晃时使用振动模式效果更佳")
             }
             
         } else if motionData.isMovingFast {
@@ -219,6 +231,9 @@ class SmartEffectsManager: ObservableObject {
         // 分析使用模式
         let calendar = Calendar.current
         let hour = calendar.component(.hour, from: Date())
+        
+        // 更新峰值使用小时（简化的逻辑）
+        usageStatistics.peakUsageHour = hour
         
         // 增加会话计数
         if interactionCount > 0 {

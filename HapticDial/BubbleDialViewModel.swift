@@ -1,4 +1,4 @@
-// ViewModels/BubbleDialViewModel.swift - 修复 Futuristic 模式声音问题
+// ViewModels/BubbleDialViewModel.swift - 完整修复版
 import SwiftUI
 import Combine
 import AudioToolbox
@@ -19,6 +19,7 @@ class BubbleDialViewModel: ObservableObject {
     // 智能效果管理器引用
     private let smartEffectsManager = SmartEffectsManager.shared
     private let hapticManager = HapticManager.shared
+    private let unifiedSoundManager = UnifiedSoundManager.shared // 添加统一音效管理器
     
     // 连击奖励
     private let streakThreshold = 10
@@ -69,10 +70,10 @@ class BubbleDialViewModel: ObservableObject {
         }
         
         // 监听设置变化
-        hapticManager.$customSoundMode
+        hapticManager.$isEnabled
             .sink { [weak self] _ in
-                // 声音模式变化时更新声音设置
-                print("🎵 声音模式已更新")
+                // 触感启用状态变化时处理
+                print("🎵 触感启用状态已更新")
             }
             .store(in: &cancellables)
     }
@@ -133,6 +134,7 @@ class BubbleDialViewModel: ObservableObject {
             energySoundPlayer = nil
         }
     }
+    
     private func setupDigitalSounds() {
         // 设置 Digital 模式的自定义声音（可选）
         // 可以在这里添加数字音效的自定义音频文件
@@ -187,10 +189,8 @@ class BubbleDialViewModel: ObservableObject {
         // 播放触感反馈
         hapticManager.playClick(velocity: hapticVelocity)
         
-        // 播放声音（如果启用）
-        if hapticManager.customSoundMode != .silent {
-            playTapSound(forSpeed: timeSinceLastTap)
-        }
+        // 播放声音（如果启用）- 使用统一音效管理器
+        playTapSound(forSpeed: timeSinceLastTap)
         
         // 添加动画效果
         triggerVisualFeedback()
@@ -223,8 +223,8 @@ class BubbleDialViewModel: ObservableObject {
         // 播放重置触感
         hapticManager.playCustomPattern(.doubleClick)
         
-        // 播放重置声音（如果启用）
-        if hapticManager.customSoundMode != .silent {
+        // 播放重置声音（如果启用）- 使用统一音效管理器
+        if unifiedSoundManager.isSoundEnabled() {
             AudioServicesPlaySystemSound(systemPopSoundID)
         }
         
@@ -287,7 +287,7 @@ class BubbleDialViewModel: ObservableObject {
         hapticManager.playCustomPattern(pattern)
         
         // 如果启用了声音，播放连击音效
-        if hapticManager.customSoundMode != .silent {
+        if unifiedSoundManager.isSoundEnabled() {
             playStreakSound()
         }
         
@@ -346,250 +346,49 @@ class BubbleDialViewModel: ObservableObject {
         }
     }
     
-    // ViewModels/BubbleDialViewModel.swift - 修改声音播放逻辑
-    // ... 前面的代码保持不变 ...
-
     private func playTapSound(forSpeed timeSinceLastTap: TimeInterval) {
-        // 如果有自定义声音包，优先使用
-        if let packId = hapticManager.currentCustomSoundPack {
-            playCustomSoundFromPack(packId, forSpeed: timeSinceLastTap)
-            return
-        }
+        // 使用统一音效管理器播放声音
+        guard unifiedSoundManager.isSoundEnabled() else { return }
         
-        // 否则使用原来的逻辑
-        let soundMode = hapticManager.customSoundMode
-        
-        switch soundMode {
-        case .default:
-            // 使用默认系统声音 - HapticManager会自动处理
-            AudioServicesPlaySystemSound(systemClickSoundID)
-            
-        case .mechanical:
-            if timeSinceLastTap < 0.1 {
-                AudioServicesPlaySystemSound(systemTickSoundID)
-            } else {
-                AudioServicesPlaySystemSound(systemClickSoundID)
-            }
-            
-        case .digital:
-            // Digital 模式 - 使用干净的数字声音
-            if timeSinceLastTap < 0.1 {
-                // 尝试使用自定义数字音效
-                digitalTickPlayer?.play()
-                // 后备：使用系统声音
-                AudioServicesPlaySystemSound(1053) // 数字滴答声
-            } else {
-                digitalClickPlayer?.play()
-                AudioServicesPlaySystemSound(1057) // 数字点击声
-            }
-            
-        case .natural:
-            if tapCount % 3 == 0 {
-                AudioServicesPlaySystemSound(systemWaterSoundID)
-            } else if tapCount % 3 == 1 {
-                AudioServicesPlaySystemSound(systemWoodSoundID)
-            } else {
-                AudioServicesPlaySystemSound(systemPopSoundID)
-            }
-            
-        case .futuristic:
-            // 修复：Futuristic 模式使用自定义音频或系统声音
-            if timeSinceLastTap < 0.15 {
-                // 快速点击：激光声音
-                if let laserPlayer = laserSoundPlayer, laserPlayer.prepareToPlay() {
-                    laserPlayer.currentTime = 0
-                    laserPlayer.play()
-                } else {
-                    // 后备：使用高科技感的系统声音
-                    AudioServicesPlaySystemSound(1030) // 钟声，类似科幻音效
-                }
-            } else {
-                // 慢速点击：合成器声音
-                if let synthPlayer = synthSoundPlayer, synthPlayer.prepareToPlay() {
-                    synthPlayer.currentTime = 0
-                    synthPlayer.play()
-                } else {
-                    // 后备：使用合成器感的系统声音
-                    AudioServicesPlaySystemSound(1013) // 科幻感的声音
-                }
-            }
-            
-        case .silent:
-            // Silent 模式：故意不播放任何声音
-            break // 无声音
+        // 直接播放选中的音效
+        if let selectedSound = unifiedSoundManager.selectedSound {
+            unifiedSoundManager.playSound(selectedSound)
         }
     }
-
-    // 新增方法：从自定义声音包播放声音
-    private func playCustomSoundFromPack(_ packId: String, forSpeed timeSinceLastTap: TimeInterval) {
-        // 根据点击速度选择不同的声音
-        let soundName: String
-        
-        if timeSinceLastTap < 0.1 {
-            soundName = "fast_click"
-        } else if timeSinceLastTap < 0.3 {
-            soundName = "normal_click"
-        } else {
-            soundName = "slow_click"
-        }
-        
-        // 尝试播放特定声音
-        if let soundURL = SoundPackManager.shared.getSoundFileURL(forSoundPack: packId, soundName: soundName) {
-            playAudioFromURL(soundURL)
-        } else {
-            // 尝试播放click声音
-            if let clickURL = SoundPackManager.shared.getSoundFileURL(forSoundPack: packId, soundName: "click") {
-                playAudioFromURL(clickURL)
-            } else {
-                // 播放音效包中的第一个声音
-                if let pack = SoundPackManager.shared.installedSoundPacks.first(where: { $0.id == packId }),
-                   let firstSound = pack.sounds.first,
-                   let firstSoundURL = SoundPackManager.shared.getSoundFileURL(forSoundPack: packId, soundName: firstSound.name) {
-                    playAudioFromURL(firstSoundURL)
-                } else {
-                    // 最后回退到默认系统声音
-                    AudioServicesPlaySystemSound(systemClickSoundID)
-                }
-            }
-        }
-    }
-
-    // 播放音频的辅助方法
-    private func playAudioFromURL(_ url: URL) {
-        do {
-            let player = try AVAudioPlayer(contentsOf: url)
-            player.volume = Float(hapticManager.volume)
-            player.prepareToPlay()
-            player.currentTime = 0
-            player.play()
-        } catch {
-            print("❌ 播放自定义音频失败: \(error)")
-            AudioServicesPlaySystemSound(systemClickSoundID)
-        }
-    }
-
-    // ... 后面的代码保持不变 ...
     
     private func playStreakSound() {
-        let soundMode = hapticManager.customSoundMode
+        guard unifiedSoundManager.isSoundEnabled() else { return }
         
-        switch soundMode {
-        case .mechanical:
-            AudioServicesPlaySystemSound(systemPopSoundID)
-        case .digital:
-            // 数字连击声音
-            digitalPopPlayer?.play()
-            AudioServicesPlaySystemSound(1055) // 数字弹出声
-        case .natural:
-            AudioServicesPlaySystemSound(systemPopSoundID)
-        case .futuristic:
-            // 未来感连击声音
-            if let energyPlayer = energySoundPlayer, energyPlayer.prepareToPlay() {
-                energyPlayer.currentTime = 0
-                energyPlayer.play()
-            } else {
-                AudioServicesPlaySystemSound(1035) // 科幻感的声音
-            }
-        default:
-            AudioServicesPlaySystemSound(systemPopSoundID)
+        // 播放连击声音
+        if let selectedSound = unifiedSoundManager.selectedSound {
+            unifiedSoundManager.playSound(selectedSound)
         }
     }
     
     private func playCelebrationSound() {
-        let soundMode = hapticManager.customSoundMode
+        guard unifiedSoundManager.isSoundEnabled() else { return }
         
-        switch soundMode {
-        case .default, .mechanical, .natural:
-            AudioServicesPlaySystemSound(systemPopSoundID)
-        case .digital:
-            digitalPopPlayer?.play()
-            AudioServicesPlaySystemSound(1055) // 数字庆祝声
-        case .futuristic:
-            // 未来感庆祝声音
-            if let energyPlayer = energySoundPlayer, energyPlayer.prepareToPlay() {
-                energyPlayer.currentTime = 0
-                energyPlayer.volume = 1.0
-                energyPlayer.play()
-            } else {
-                AudioServicesPlaySystemSound(1025) // 庆祝钟声
-            }
-        case .silent:
-            break
+        // 播放庆祝声音
+        if let selectedSound = unifiedSoundManager.selectedSound {
+            unifiedSoundManager.playSound(selectedSound)
         }
     }
     
     private func playSpecialAchievementSound() {
-        let soundMode = hapticManager.customSoundMode
+        guard unifiedSoundManager.isSoundEnabled() else { return }
         
         // 播放成就庆祝声音序列
-        switch soundMode {
-        case .default, .mechanical:
-            AudioServicesPlaySystemSound(systemClickSoundID)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                guard let self = self else { return }
-                AudioServicesPlaySystemSound(self.systemTickSoundID)
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-                guard let self = self else { return }
-                AudioServicesPlaySystemSound(self.systemPopSoundID)
-            }
-            
-        case .digital:
-            AudioServicesPlaySystemSound(1057)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                guard self != nil else { return }
-                AudioServicesPlaySystemSound(1053)
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-                guard self != nil else { return }
-                AudioServicesPlaySystemSound(1055)
-            }
-            
-        case .natural:
-            AudioServicesPlaySystemSound(systemWaterSoundID)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                guard let self = self else { return }
-                AudioServicesPlaySystemSound(systemWoodSoundID)
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-                guard let self = self else { return }
-                AudioServicesPlaySystemSound(systemPopSoundID)
-            }
-            
-        case .futuristic:
-            // 未来感成就声音序列
-            if let laserPlayer = laserSoundPlayer, laserPlayer.prepareToPlay() {
-                laserPlayer.currentTime = 0
-                laserPlayer.volume = 0.8
-                laserPlayer.play()
-            } else {
-                AudioServicesPlaySystemSound(1030)
-            }
+        if let selectedSound = unifiedSoundManager.selectedSound {
+            unifiedSoundManager.playSound(selectedSound)
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
                 guard let self = self else { return }
-                if let synthPlayer = self.synthSoundPlayer, synthPlayer.prepareToPlay() {
-                    synthPlayer.currentTime = 0
-                    synthPlayer.volume = 0.9
-                    synthPlayer.play()
-                } else {
-                    AudioServicesPlaySystemSound(1013)
-                }
+                self.unifiedSoundManager.playSound(selectedSound)
             }
-            
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
                 guard let self = self else { return }
-                if let energyPlayer = self.energySoundPlayer, energyPlayer.prepareToPlay() {
-                    energyPlayer.currentTime = 0
-                    energyPlayer.volume = 1.0
-                    energyPlayer.play()
-                } else {
-                    AudioServicesPlaySystemSound(1025)
-                }
+                self.unifiedSoundManager.playSound(selectedSound)
             }
-            
-        case .silent:
-            break
         }
     }
     
@@ -755,38 +554,15 @@ class BubbleDialViewModel: ObservableObject {
     
     // MARK: - 音频测试方法
     
-    // 在 BubbleDialViewModel.swift 中修改以下部分：
-
-    // MARK: - 音频测试方法
-
-    func testSoundMode(_ mode: HapticManager.CustomSoundMode) {  // 修改这里
-        print("🔊 测试声音模式: \(mode)")
+    func testSoundPlayback() {
+        print("🔊 测试声音播放...")
         
-        // 临时切换到测试模式
-        let originalMode = hapticManager.customSoundMode
-        hapticManager.customSoundMode = mode
-        
-        // 播放测试声音
-        playTapSound(forSpeed: 0.2)
-        
-        // 恢复原模式
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            guard let self = self else { return }
-            self.hapticManager.customSoundMode = originalMode
-        }
-    }
-
-    func testAllSoundModes() {
-        print("🎵 测试所有声音模式...")
-        
-        let modes: [HapticManager.CustomSoundMode] = [.default, .mechanical, .digital, .natural, .futuristic, .silent]  // 修改这里
-        
-        for (index, mode) in modes.enumerated() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(index) * 1.0) { [weak self] in
-                guard let self = self else { return }
-                print("测试: \(mode)")
-                self.testSoundMode(mode)
-            }
+        // 测试当前选中的音效
+        if let selectedSound = unifiedSoundManager.selectedSound {
+            unifiedSoundManager.playSound(selectedSound)
+            print("✅ 播放音效: \(selectedSound.name)")
+        } else {
+            print("⚠️ 没有选中的音效")
         }
     }
     

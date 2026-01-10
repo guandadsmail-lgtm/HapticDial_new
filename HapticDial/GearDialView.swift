@@ -85,6 +85,7 @@ struct GearDialView: View {
         }
         .frame(width: size, height: size)
         .rotationEffect(.degrees(viewModel.rotationAngle))
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: viewModel.rotationAngle) // 🔴 添加动画
         .onTapGesture {
             viewModel.spinGear()
         }

@@ -152,6 +152,8 @@ class UnifiedSoundManager: ObservableObject {
     // MARK: - 音效播放
     
     func playSound(_ sound: SoundOption) {
+        print("🎵 播放音效: \(sound.name), 类型: \(sound.type)")
+        
         if let systemSoundID = sound.systemSoundID {
             AudioServicesPlaySystemSound(systemSoundID)
         } else if let soundFile = sound.soundFile {
@@ -160,20 +162,25 @@ class UnifiedSoundManager: ObservableObject {
             // 🔴 区分内置自定义音效和用户自定义音效
             if sound.isBuiltInCustom {
                 // 内置音效从app bundle中加载
-                if let bundleURL = Bundle.main.url(forResource: soundFile, withExtension: nil) {
+                if let bundleURL = Bundle.main.url(forResource: soundFile.replacingOccurrences(of: ".caf", with: ""), withExtension: "caf") {
                     soundURL = bundleURL
+                    print("🎵 从Bundle加载内置音效: \(soundFile)")
                 } else {
-                    print("❌ Built-in sound file not found: \(soundFile)")
+                    print("❌ 内置音效文件未找到: \(soundFile)")
                     return
                 }
-            } else {
+            } else if sound.isUserCustom {
                 // 用户自定义音效从文档目录加载
                 soundURL = userCustomSoundsURL.appendingPathComponent(soundFile)
+                print("🎵 从用户目录加载自定义音效: \(soundFile)")
+            } else {
+                print("❌ 未知音效类型")
+                return
             }
             
             // 检查文件是否存在
             guard FileManager.default.fileExists(atPath: soundURL.path) else {
-                print("❌ Sound file not found at: \(soundURL.path)")
+                print("❌ 音效文件不存在: \(soundURL.path)")
                 return
             }
             
@@ -182,7 +189,7 @@ class UnifiedSoundManager: ObservableObject {
             // 🔴 使用缓存的声音ID，避免播放不完整
             if let cachedSoundID = soundIDCache[cacheKey] {
                 AudioServicesPlaySystemSound(cachedSoundID)
-                print("✅ Using cached sound ID for: \(soundFile)")
+                print("✅ 使用缓存的音效ID: \(soundFile)")
             } else {
                 var soundID: SystemSoundID = 0
                 let status = AudioServicesCreateSystemSoundID(soundURL as CFURL, &soundID)
@@ -191,11 +198,13 @@ class UnifiedSoundManager: ObservableObject {
                     // 🔴 缓存声音ID，不要立即释放
                     soundIDCache[cacheKey] = soundID
                     AudioServicesPlaySystemSound(soundID)
-                    print("✅ Created and cached sound ID for: \(soundFile)")
+                    print("✅ 创建并缓存音效ID: \(soundFile)")
                 } else {
-                    print("❌ Failed to create system sound ID for: \(soundFile), error: \(status)")
+                    print("❌ 创建系统音效ID失败: \(soundFile), 错误: \(status)")
                 }
             }
+        } else {
+            print("🎵 静音模式（无音效）")
         }
     }
     
@@ -205,7 +214,7 @@ class UnifiedSoundManager: ObservableObject {
             AudioServicesDisposeSystemSoundID(soundID)
         }
         soundIDCache.removeAll()
-        print("✅ Cleared sound cache")
+        print("✅ 清理音效缓存")
     }
     
     // 🔴 在deinit中清理资源
@@ -222,9 +231,9 @@ class UnifiedSoundManager: ObservableObject {
         if !fileManager.fileExists(atPath: customSoundsDir.path) {
             do {
                 try fileManager.createDirectory(at: customSoundsDir, withIntermediateDirectories: true, attributes: nil)
-                print("✅ Custom sounds directory created")
+                print("✅ 创建自定义音效目录")
             } catch {
-                print("❌ Failed to create custom sounds directory: \(error)")
+                print("❌ 创建自定义音效目录失败: \(error)")
             }
         }
     }
@@ -233,15 +242,15 @@ class UnifiedSoundManager: ObservableObject {
         let fileManager = FileManager.default
         
         // 检查文件扩展名 - 放宽限制，支持常见音频格式
-        let validExtensions = ["caf", "wav", "mp3", "m4a", "aiff"]
+        let validExtensions = ["caf", "wav", "mp3", "m4a", "aiff", "aac"]
         guard validExtensions.contains(url.pathExtension.lowercased()) else {
             throw ImportError.invalidFileFormat
         }
         
-        // 检查文件大小（限制为5MB）
+        // 检查文件大小（限制为10MB）
         let attributes = try fileManager.attributesOfItem(atPath: url.path)
         let fileSize = attributes[.size] as? UInt64 ?? 0
-        guard fileSize < 5 * 1024 * 1024 else {
+        guard fileSize < 10 * 1024 * 1024 else {
             throw ImportError.fileTooLarge
         }
         
@@ -254,11 +263,13 @@ class UnifiedSoundManager: ObservableObject {
         try fileManager.copyItem(at: url, to: destinationURL)
         
         // 获取音效名称（移除扩展名）
-        let soundName = originalName.replacingOccurrences(of: ".caf", with: "")
+        let soundName = originalName
+            .replacingOccurrences(of: ".caf", with: "")
             .replacingOccurrences(of: ".wav", with: "")
             .replacingOccurrences(of: ".mp3", with: "")
             .replacingOccurrences(of: ".m4a", with: "")
             .replacingOccurrences(of: ".aiff", with: "")
+            .replacingOccurrences(of: ".aac", with: "")
             .replacingOccurrences(of: "_", with: " ")
             .capitalized
         
@@ -277,10 +288,13 @@ class UnifiedSoundManager: ObservableObject {
         userCustomSounds.append(soundOption)
         saveUserCustomSoundsList()
         
-        print("✅ Successfully imported custom sound: \(soundName)")
+        print("✅ 成功导入自定义音效: \(soundName)")
         
         // 自动选择新导入的音效
         selectedSound = soundOption
+        
+        // 立即播放测试
+        playSound(soundOption)
     }
     
     private func loadUserCustomSounds() {
@@ -320,18 +334,20 @@ class UnifiedSoundManager: ObservableObject {
         // 扫描目录中的文件（备用方法）
         do {
             let files = try fileManager.contentsOfDirectory(at: userCustomSoundsURL, includingPropertiesForKeys: nil)
-            let audioFiles = files.filter { ["caf", "wav", "mp3", "m4a", "aiff"].contains($0.pathExtension.lowercased()) }
+            let audioFiles = files.filter { ["caf", "wav", "mp3", "m4a", "aiff", "aac"].contains($0.pathExtension.lowercased()) }
             
             for fileURL in audioFiles {
                 let fileName = fileURL.lastPathComponent
                 
                 // 如果还没有在列表中，添加它
                 if !userCustomSounds.contains(where: { $0.soundFile == fileName }) {
-                    let soundName = fileName.replacingOccurrences(of: ".caf", with: "")
+                    let soundName = fileName
+                        .replacingOccurrences(of: ".caf", with: "")
                         .replacingOccurrences(of: ".wav", with: "")
                         .replacingOccurrences(of: ".mp3", with: "")
                         .replacingOccurrences(of: ".m4a", with: "")
                         .replacingOccurrences(of: ".aiff", with: "")
+                        .replacingOccurrences(of: ".aac", with: "")
                         .replacingOccurrences(of: "_", with: " ")
                         .capitalized
                     
@@ -352,7 +368,7 @@ class UnifiedSoundManager: ObservableObject {
             saveUserCustomSoundsList()
             
         } catch {
-            print("❌ Failed to scan user custom sounds: \(error)")
+            print("❌ 扫描用户自定义音效失败: \(error)")
         }
     }
     
@@ -402,9 +418,9 @@ class UnifiedSoundManager: ObservableObject {
                 selectedSound = systemSoundOptions.first
             }
             
-            print("✅ Deleted custom sound: \(sound.name)")
+            print("✅ 删除自定义音效: \(sound.name)")
         } catch {
-            print("❌ Failed to delete custom sound: \(error)")
+            print("❌ 删除自定义音效失败: \(error)")
         }
     }
     
@@ -445,7 +461,24 @@ class UnifiedSoundManager: ObservableObject {
     
     func refreshSoundOptions() {
         loadUserCustomSounds()
-        print("🔄 UnifiedSoundManager refreshed sound options")
+        print("🔄 UnifiedSoundManager 刷新音效选项")
+    }
+    
+    // MARK: - 调试方法
+    
+    func debugPrintSoundInfo() {
+        print("=== 音效管理器调试信息 ===")
+        print("选中的音效: \(selectedSound?.name ?? "无")")
+        print("用户自定义音效数量: \(userCustomSounds.count)")
+        print("缓存音效ID数量: \(soundIDCache.count)")
+        
+        // 打印用户自定义音效文件
+        do {
+            let files = try FileManager.default.contentsOfDirectory(at: userCustomSoundsURL, includingPropertiesForKeys: nil)
+            print("用户目录中的音效文件: \(files.map { $0.lastPathComponent })")
+        } catch {
+            print("无法读取用户目录: \(error)")
+        }
     }
     
     // MARK: - 错误类型
@@ -457,9 +490,9 @@ class UnifiedSoundManager: ObservableObject {
         var errorDescription: String? {
             switch self {
             case .invalidFileFormat:
-                return "Only .caf, .wav, .mp3, .m4a, .aiff format sound files are supported"
+                return "仅支持 .caf, .wav, .mp3, .m4a, .aiff, .aac 格式的音效文件"
             case .fileTooLarge:
-                return "Sound file cannot exceed 5MB"
+                return "音效文件不能超过10MB"
             }
         }
     }

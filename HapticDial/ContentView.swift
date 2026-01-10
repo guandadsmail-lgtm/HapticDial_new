@@ -1,5 +1,6 @@
 // HapticDial/ContentView.swift
 import SwiftUI
+import AVFoundation
 
 struct ContentView: View {
     @StateObject private var viewModel = DialViewModel()
@@ -7,9 +8,14 @@ struct ContentView: View {
     @StateObject private var gearViewModel = GearDialViewModel()
     @StateObject private var fireworksManager = FireworksManager.shared
     @StateObject private var crackManager = CrackManager.shared
+    @StateObject private var coinManager = CoinManager.shared
     @StateObject private var effectManager = EffectManager.shared
+    
     @State private var showSettings = false
     @State private var showSoundOptions = false
+    @State private var triggerCoinRain = false
+    @State private var triggerSpecialEffect = false
+    @State private var specialEffectType = "fireworks"
     
     var body: some View {
         GeometryReader { geometry in
@@ -66,72 +72,72 @@ struct ContentView: View {
                     .zIndex(999)
                 }
                 
-                    if isLandscape {
-                        // 横屏布局：两侧小转盘，中间主转盘，主转盘下方是缩小的音效选择器
-                        HStack(spacing: isSmallScreen ? 8 : 15) {
-                            // 左侧：气泡转盘
-                            VStack(spacing: isSmallScreen ? 6 : 10) {
-                                BubbleDialViewWrapper(viewModel: bubbleViewModel)
-                                    .scaleEffect(scaleFactor)
-                                    .frame(width: 120 * scaleFactor, height: 120 * scaleFactor)
-                            }
-                            .frame(width: isSmallScreen ? 95 : 110, height: 140)
-                            
-                            // 🔴 修改：根据设备类型调整 Spacer 宽度
-                            // iPhone 需要更大的间距，iPad 需要较小的间距
-                            Spacer()
-                                .frame(width: isSmallScreen ? 45 : 15) // 🔴 iPhone: 25, iPad: 15
-                            
-                            // 中间：主转盘 + 缩小的音效选择器
-                            VStack(spacing: 0) {
-                                // 标题
-                                Text("HAPTIC DIAL")
-                                    .font(.system(size: isSmallScreen ? 12 : 14, weight: .medium, design: .rounded))
-                                    .foregroundColor(.white.opacity(0.6))
-                                    .tracking(2)
-                                    .padding(.bottom, isSmallScreen ? 8 : 15)
-                                
-                                // 主转盘
-                                DialViewRedesigned(viewModel: viewModel)
-                                    .scaleEffect(scaleFactor)
-                                    .frame(width: 320 * scaleFactor, height: 320 * scaleFactor)
-                                    .padding(.vertical, isSmallScreen ? 5 : 10)
-                                
-                                Spacer(minLength: isSmallScreen ? 8 : 12)
-                                
-                                // 音效选择器（横屏时缩小并水平居中）
-                                HorizontalSoundPicker(
-                                    onAddSound: {
-                                        showSoundOptions = true
-                                    },
-                                    scaleFactor: 0.7,
-                                    isLandscape: true
-                                )
-                                .frame(height: 60)
-                                .padding(.horizontal, 20)
-                                .frame(width: 320 * scaleFactor)
-                                .padding(.bottom, isSmallScreen ? 10 : 15)
-                            }
-                            .frame(maxHeight: .infinity)
-                            
-                            // 🔴 修改：根据设备类型调整 Spacer 宽度
-                            // iPhone 需要更大的间距，iPad 需要较小的间距
-                            Spacer()
-                                .frame(width: isSmallScreen ? 45 : 15) // 🔴 iPhone: 25, iPad: 15
-                            
-                            // 右侧：齿轮转盘
-                            VStack(spacing: isSmallScreen ? 6 : 10) {
-                                GearDialViewWrapper(viewModel: gearViewModel)
-                                    .scaleEffect(scaleFactor)
-                                    .frame(width: 120 * scaleFactor, height: 120 * scaleFactor)
-                            }
-                            .frame(width: isSmallScreen ? 95 : 110, height: 140)
+                if isLandscape {
+                    // 横屏布局：两侧小转盘，中间主转盘，主转盘下方是缩小的音效选择器
+                    HStack(spacing: isSmallScreen ? 8 : 15) {
+                        // 左侧：气泡转盘
+                        VStack(spacing: isSmallScreen ? 6 : 10) {
+                            BubbleDialViewWrapper(viewModel: bubbleViewModel)
+                                .scaleEffect(scaleFactor)
+                                .frame(width: 120 * scaleFactor, height: 120 * scaleFactor)
                         }
-                        .padding(.horizontal, isSmallScreen ? 12 : 25)
-                        .padding(.vertical, 20)
+                        .frame(width: isSmallScreen ? 95 : 110, height: 140)
+                        
+                        // 关键修改：使用固定宽度的 Spacer
+                        // iPhone 需要更大的间距，iPad 需要较小的间距
+                        Spacer()
+                            .frame(width: isSmallScreen ? 45 : 15) // iPhone: 25, iPad: 15
+                        
+                        // 中间：主转盘 + 缩小的音效选择器
+                        VStack(spacing: 0) {
+                            // 标题
+                            Text("HAPTIC DIAL")
+                                .font(.system(size: isSmallScreen ? 12 : 14, weight: .medium, design: .rounded))
+                                .foregroundColor(.white.opacity(0.6))
+                                .tracking(2)
+                                .padding(.bottom, isSmallScreen ? 8 : 15)
+                            
+                            // 主转盘
+                            DialViewRedesigned(viewModel: viewModel)
+                                .scaleEffect(scaleFactor)
+                                .frame(width: 320 * scaleFactor, height: 320 * scaleFactor)
+                                .padding(.vertical, isSmallScreen ? 5 : 10)
+                            
+                            Spacer(minLength: isSmallScreen ? 8 : 12)
+                            
+                            // 音效选择器（横屏时缩小并水平居中）
+                            HorizontalSoundPicker(
+                                onAddSound: {
+                                    showSoundOptions = true
+                                },
+                                scaleFactor: 0.7,
+                                isLandscape: true
+                            )
+                            .frame(height: 60)
+                            .padding(.horizontal, 20)
+                            .frame(width: 320 * scaleFactor)
+                            .padding(.bottom, isSmallScreen ? 10 : 15)
+                        }
                         .frame(maxHeight: .infinity)
+                        
+                        // 关键修改：使用固定宽度的 Spacer
+                        // iPhone 需要更大的间距，iPad 需要较小的间距
+                        Spacer()
+                            .frame(width: isSmallScreen ? 45 : 15) // iPhone: 25, iPad: 15
+                        
+                        
+                        // 右侧：齿轮转盘
+                        VStack(spacing: isSmallScreen ? 6 : 10) {
+                            GearDialViewWrapper(viewModel: gearViewModel)
+                                .scaleEffect(scaleFactor)
+                                .frame(width: 120 * scaleFactor, height: 120 * scaleFactor)
+                        }
+                        .frame(width: isSmallScreen ? 95 : 110, height: 140)
                     }
-                                   else {
+                    .padding(.horizontal, isSmallScreen ? 12 : 25)
+                    .padding(.vertical, 20)
+                    .frame(maxHeight: .infinity)
+                } else {
                     // 竖屏布局：上-主转盘，中-两个小转盘，下-音效选择器
                     VStack(spacing: 0) {
                         // 标题
@@ -177,7 +183,7 @@ struct ContentView: View {
                                 .foregroundColor(.white.opacity(0.7))
                                 .tracking(1)
                             
-                            HStack(spacing: isSmallScreen ? 40 : 60) {
+                            HStack(spacing: isSmallScreen ? 40 : 30) {
                                 BubbleDialViewWrapper(viewModel: bubbleViewModel)
                                     .scaleEffect(0.7)
                                     .frame(width: 90, height: 90)
@@ -251,6 +257,32 @@ struct ContentView: View {
                         .allowsHitTesting(false)
                         .transition(.opacity)
                 }
+                
+                // 金币雨效果
+                if coinManager.showCoins {
+                    CoinRainView()
+                        .edgesIgnoringSafeArea(.all)
+                        .zIndex(1001) // 确保在最上层
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
+            }
+            .onChange(of: triggerCoinRain) { oldValue, newValue in
+                if newValue {
+                    triggerCoinRain = false
+                    coinManager.triggerCoinRain(screenSize: geometry.size)
+                }
+            }
+            .onChange(of: triggerSpecialEffect) { oldValue, newValue in
+                if newValue {
+                    triggerSpecialEffect = false
+                    
+                    if specialEffectType == "fireworks" {
+                        fireworksManager.triggerFireworks()
+                    } else {
+                        crackManager.triggerCrack(screenSize: geometry.size)
+                    }
+                }
             }
         }
         .sheet(isPresented: $showSettings) {
@@ -269,6 +301,24 @@ struct ContentView: View {
                     .navigationBarItems(trailing: Button("Done") {
                         showSoundOptions = false
                     })
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TriggerCoinRain"))) { notification in
+            if let userInfo = notification.userInfo,
+               let type = userInfo["type"] as? String,
+               let count = userInfo["count"] as? Int {
+                print("🎯 收到金币雨通知: \(type) 达到 \(count)")
+                triggerCoinRain = true
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TriggerSpecialEffect"))) { notification in
+            if let userInfo = notification.userInfo,
+               let type = userInfo["type"] as? String,
+               let effect = userInfo["effect"] as? String,
+               let count = userInfo["count"] as? Int {
+                print("🎇 收到特殊效果通知: \(type) 达到 \(count)，效果: \(effect)")
+                specialEffectType = effect
+                triggerSpecialEffect = true
             }
         }
     }

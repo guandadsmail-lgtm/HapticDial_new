@@ -9,7 +9,7 @@ struct BubbleDialView: View {
     @State private var particleColors: [Color] = []
     @State private var lastUpdateTime: Date = Date()
     
-    let size: CGFloat = 120
+    let size: CGFloat = 160
     
     // 颜色定义
     private let bubbleColor = Color(red: 0.2, green: 0.8, blue: 1.0)      // 数字颜色
@@ -147,7 +147,7 @@ struct BubbleDialView: View {
             
             // 点击次数显示 - 在微粒之上，确保不被覆盖
             Text("\(viewModel.tapCount)")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .font(.system(size: 32, weight: .bold, design: .rounded))
                 .foregroundColor(bubbleColor)
                 .shadow(color: bubbleColor.opacity(0.5), radius: 8, x: 0, y: 0)
                 .zIndex(3) // 确保数字在微粒之上
@@ -184,6 +184,14 @@ struct BubbleDialView: View {
             viewModel.resetCount()
             HapticManager.shared.playClick()
         }
+        .overlay(
+            // 🔴 添加 BUBBLE 标签 - 放在转盘外部下方，使用固定偏移
+            Text("BUBBLE")
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.7))
+                .offset(y: size / 2 + 20) // 🔴 放在转盘底部边缘下方20点
+                .zIndex(4) // 确保在最上层
+        )
         .opacity(viewModel.bubbleOpacity)
     }
     
@@ -230,8 +238,6 @@ struct BubbleDialView: View {
         )
     }
     
-    // 在 BubbleDialView.swift 中找到这个函数并修改：
-
     private func updateParticles(count: Int) {
         // 确保粒子数量等于点击次数
         if count > particlePositions.count {

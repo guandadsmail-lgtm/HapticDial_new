@@ -66,76 +66,72 @@ struct ContentView: View {
                     .zIndex(999)
                 }
                 
-                if isLandscape {
-                    // 横屏布局：两侧小转盘，中间主转盘，主转盘下方是缩小的音效选择器
-                    HStack(spacing: isSmallScreen ? 10 : 20) {
-                        // 左侧：气泡转盘
-                        VStack {
-                            BubbleDialViewWrapper(viewModel: bubbleViewModel)
-                                .scaleEffect(scaleFactor)
-                                .frame(width: 120 * scaleFactor, height: 120 * scaleFactor)
-                                .padding(.bottom, isSmallScreen ? 4 : 8)
+                    if isLandscape {
+                        // 横屏布局：两侧小转盘，中间主转盘，主转盘下方是缩小的音效选择器
+                        HStack(spacing: isSmallScreen ? 8 : 15) {
+                            // 左侧：气泡转盘
+                            VStack(spacing: isSmallScreen ? 6 : 10) {
+                                BubbleDialViewWrapper(viewModel: bubbleViewModel)
+                                    .scaleEffect(scaleFactor)
+                                    .frame(width: 120 * scaleFactor, height: 120 * scaleFactor)
+                            }
+                            .frame(width: isSmallScreen ? 95 : 110, height: 140)
                             
-                            Text("BUBBLE")
-                                .font(.system(size: isSmallScreen ? 10 : 12, weight: .medium, design: .rounded))
-                                .foregroundColor(.white.opacity(0.5))
-                                .tracking(1)
+                            // 🔴 修改：根据设备类型调整 Spacer 宽度
+                            // iPhone 需要更大的间距，iPad 需要较小的间距
+                            Spacer()
+                                .frame(width: isSmallScreen ? 45 : 15) // 🔴 iPhone: 25, iPad: 15
+                            
+                            // 中间：主转盘 + 缩小的音效选择器
+                            VStack(spacing: 0) {
+                                // 标题
+                                Text("HAPTIC DIAL")
+                                    .font(.system(size: isSmallScreen ? 12 : 14, weight: .medium, design: .rounded))
+                                    .foregroundColor(.white.opacity(0.6))
+                                    .tracking(2)
+                                    .padding(.bottom, isSmallScreen ? 8 : 15)
+                                
+                                // 主转盘
+                                DialViewRedesigned(viewModel: viewModel)
+                                    .scaleEffect(scaleFactor)
+                                    .frame(width: 320 * scaleFactor, height: 320 * scaleFactor)
+                                    .padding(.vertical, isSmallScreen ? 5 : 10)
+                                
+                                Spacer(minLength: isSmallScreen ? 8 : 12)
+                                
+                                // 音效选择器（横屏时缩小并水平居中）
+                                HorizontalSoundPicker(
+                                    onAddSound: {
+                                        showSoundOptions = true
+                                    },
+                                    scaleFactor: 0.7,
+                                    isLandscape: true
+                                )
+                                .frame(height: 60)
+                                .padding(.horizontal, 20)
+                                .frame(width: 320 * scaleFactor)
+                                .padding(.bottom, isSmallScreen ? 10 : 15)
+                            }
+                            .frame(maxHeight: .infinity)
+                            
+                            // 🔴 修改：根据设备类型调整 Spacer 宽度
+                            // iPhone 需要更大的间距，iPad 需要较小的间距
+                            Spacer()
+                                .frame(width: isSmallScreen ? 45 : 15) // 🔴 iPhone: 25, iPad: 15
+                            
+                            // 右侧：齿轮转盘
+                            VStack(spacing: isSmallScreen ? 6 : 10) {
+                                GearDialViewWrapper(viewModel: gearViewModel)
+                                    .scaleEffect(scaleFactor)
+                                    .frame(width: 120 * scaleFactor, height: 120 * scaleFactor)
+                            }
+                            .frame(width: isSmallScreen ? 95 : 110, height: 140)
                         }
-                        .frame(width: isSmallScreen ? 100 : 120)
-                        
-                        Spacer()
-                        
-                        // 中间：主转盘 + 缩小的音效选择器
-                        VStack(spacing: 0) {
-                            // 标题
-                            Text("HAPTIC DIAL")
-                                .font(.system(size: isSmallScreen ? 12 : 14, weight: .medium, design: .rounded))
-                                .foregroundColor(.white.opacity(0.6))
-                                .tracking(2)
-                                .padding(.bottom, isSmallScreen ? 8 : 15)
-                            
-                            // 主转盘
-                            DialViewRedesigned(viewModel: viewModel)
-                                .scaleEffect(scaleFactor)
-                                .frame(width: 320 * scaleFactor, height: 320 * scaleFactor)
-                                .padding(.vertical, isSmallScreen ? 5 : 10)
-                            
-                            Spacer(minLength: isSmallScreen ? 5 : 10)
-                            
-                            // 音效选择器（横屏时缩小并水平居中）
-                            HorizontalSoundPicker(
-                                onAddSound: {
-                                    showSoundOptions = true
-                                },
-                                scaleFactor: 0.7,
-                                isLandscape: true
-                            )
-                            .frame(height: 60)
-                            .padding(.horizontal, 20)
-                            .frame(width: 320 * scaleFactor)
-                            .padding(.bottom, isSmallScreen ? 10 : 15)
-                        }
+                        .padding(.horizontal, isSmallScreen ? 12 : 25)
+                        .padding(.vertical, 20)
                         .frame(maxHeight: .infinity)
-                        
-                        Spacer()
-                        
-                        // 右侧：齿轮转盘
-                        VStack {
-                            GearDialViewWrapper(viewModel: gearViewModel)
-                                .scaleEffect(scaleFactor)
-                                .frame(width: 120 * scaleFactor, height: 120 * scaleFactor)
-                                .padding(.bottom, isSmallScreen ? 4 : 8)
-                            
-                            Text("GEAR")
-                                .font(.system(size: isSmallScreen ? 10 : 12, weight: .medium, design: .rounded))
-                                .foregroundColor(.white.opacity(0.5))
-                                .tracking(1)
-                        }
-                        .frame(width: isSmallScreen ? 100 : 120)
                     }
-                    .padding(.horizontal, isSmallScreen ? 15 : 30)
-                    .frame(maxHeight: .infinity)
-                } else {
+                                   else {
                     // 竖屏布局：上-主转盘，中-两个小转盘，下-音效选择器
                     VStack(spacing: 0) {
                         // 标题
@@ -182,27 +178,13 @@ struct ContentView: View {
                                 .tracking(1)
                             
                             HStack(spacing: isSmallScreen ? 40 : 60) {
-                                VStack(spacing: 8) {
-                                    BubbleDialViewWrapper(viewModel: bubbleViewModel)
-                                        .scaleEffect(0.7)
-                                        .frame(width: 90, height: 90)
-                                    
-                                    Text("BUBBLE")
-                                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                                        .foregroundColor(.white.opacity(0.5))
-                                        .tracking(1)
-                                }
+                                BubbleDialViewWrapper(viewModel: bubbleViewModel)
+                                    .scaleEffect(0.7)
+                                    .frame(width: 90, height: 90)
                                 
-                                VStack(spacing: 8) {
-                                    GearDialViewWrapper(viewModel: gearViewModel)
-                                        .scaleEffect(0.7)
-                                        .frame(width: 90, height: 90)
-                                    
-                                    Text("GEAR")
-                                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                                        .foregroundColor(.white.opacity(0.5))
-                                        .tracking(1)
-                                }
+                                GearDialViewWrapper(viewModel: gearViewModel)
+                                    .scaleEffect(0.7)
+                                    .frame(width: 90, height: 90)
                             }
                             .padding(.vertical, 10)
                         }

@@ -15,6 +15,15 @@ struct DialViewRedesigned: View {
     @State private var trailOpacity: Double = 1.0      // 轨迹透明度
     @State private var shouldAnimateTrail: Bool = false // 是否需要动画
     
+    // 机械控制相关状态
+    @State private var dragStartAngle: Double = 0.0
+    @State private var previousDragAngle: Double = 0.0
+    @State private var dragVelocity: Double = 0.0
+    @State private var lastDragTime: Date = Date()
+    @State private var isInMagneticZone: Bool = false
+    @State private var magneticAngle: Double = 0.0
+    @State private var isAnimatingToMagnetic: Bool = false
+    
     let dialSize: CGFloat = 320
     let innerRadius: CGFloat = 105     // 中心圆的半径（液态玻璃外沿）
     let outerRadius: CGFloat = 145     // 灰色刻度环的中心半径
@@ -23,7 +32,7 @@ struct DialViewRedesigned: View {
     
     // 红色圆环参数 - 内环到中环之间
     private let redTrailInnerRadius: CGFloat = 35  // 内环外沿（液态玻璃外沿）
-    private let redTrailOuterRadius: CGFloat = 115  // 中环外沿（数字环内沿）
+    private let redTrailOuterRadius: CGFloat = 135  // 中环外沿（数字环内沿）
     private let redTrailColor = Color.red
     
     // 荧光颜色
@@ -33,6 +42,14 @@ struct DialViewRedesigned: View {
     // 指示器颜色
     private let bubbleBlue = Color(red: 0.2, green: 0.8, blue: 1.0)
     private let gearRed = Color(red: 1.0, green: 0.4, blue: 0.2)
+    
+    // 🔴 修改：机械控制参数 - 降低灵敏度，增加控制性
+    private let magneticStep: Double = 5.0  // 磁吸步进角度（度数）从1度改为5度
+    private let velocityDamping: Double = 0.85  // 降低速度阻尼系数，让惯性更持久
+    private let magneticStrength: Double = 0.6  // 增加磁吸强度（0-1），让指针更稳定
+    private let dragSensitivity: Double = 0.7  // 🔴 降低拖拽灵敏度，从1.2改为0.7
+    private let minimumDragDistance: Double = 5.0  // 最小拖拽距离（角度），防止微小移动
+    private let velocityThreshold: Double = 100.0  // 速度阈值，只有大于此值才应用惯性
     
     // 计算灰色圆环的内外半径
     private var grayRingInnerRadius: CGFloat {
@@ -56,6 +73,15 @@ struct DialViewRedesigned: View {
     // 红色圆环的中心半径
     private var redTrailCenterRadius: CGFloat {
         return (redTrailInnerRadius + redTrailOuterRadius) / 2
+    }
+    
+    // 🔴 新增：有效的拖拽区域半径范围
+    private var validDragMinRadius: CGFloat {
+        return grayRingInnerRadius - 5
+    }
+    
+    private var validDragMaxRadius: CGFloat {
+        return grayRingOuterRadius + 5
     }
     
     var body: some View {
@@ -169,41 +195,247 @@ struct DialViewRedesigned: View {
                     resetTrail()
                 }
             }
+            // 🔴 修改：改进的拖拽手势，模拟机械表指针感觉
             .gesture(
-                DragGesture(minimumDistance: 0)
+                DragGesture(minimumDistance: 5) // 🔴 增加最小拖拽距离，防止误触
                     .onChanged { value in
-                        let distance = hypot(
-                            value.location.x - center.x,
-                            value.location.y - center.y
-                        )
+                        let location = value.location
+                        let distance = hypot(location.x - center.x, location.y - center.y)
                         
-                        let isInValidZone = distance >= (innerRadius - 10) && distance <= (outerRadius + 20)
+                        // 🔴 检查是否在有效拖拽区域 - 只在灰色圆环区域
+                        let isInValidZone = distance >= validDragMinRadius && distance <= validDragMaxRadius
                         
                         if isInValidZone {
                             if !isDragging {
-                                viewModel.handleDragStart(location: value.location, center: center)
+                                // 开始拖拽
+                                handleDragStart(location: location, center: center)
                                 isDragging = true
-                                shouldAnimateTrail = false // 开始拖动时禁用动画
+                                shouldAnimateTrail = false
+                            } else {
+                                // 持续拖拽
+                                handleDragChange(location: location, center: center)
                             }
-                            viewModel.handleDragChange(location: value.location, center: center)
                         } else {
+                            // 手指移出有效区域
                             if isDragging {
-                                viewModel.handleDragEnd()
+                                handleDragEnd()
                                 isDragging = false
-                                shouldAnimateTrail = true // 结束拖动时启用动画
+                                shouldAnimateTrail = true
                             }
                         }
                     }
                     .onEnded { _ in
                         if isDragging {
-                            viewModel.handleDragEnd()
+                            handleDragEnd()
                             isDragging = false
-                            shouldAnimateTrail = true // 结束拖动时启用动画
+                            shouldAnimateTrail = true
                         }
                     }
             )
         }
         .frame(width: dialSize, height: dialSize)
+    }
+    
+    /// 处理拖拽开始
+    private func handleDragStart(location: CGPoint, center: CGPoint) {
+        dragStartAngle = angleFromPoint(location, center: center)
+        previousDragAngle = dragStartAngle
+        lastDragTime = Date()
+        dragVelocity = 0.0
+        
+        // 播放开始拖拽的触觉反馈
+        HapticManager.shared.playClick()
+    }
+    
+    /// 处理拖拽变化（核心改进）
+    private func handleDragChange(location: CGPoint, center: CGPoint) {
+        let now = Date()
+        let timeDelta = now.timeIntervalSince(lastDragTime)
+        
+        // 计算当前角度
+        let currentAngle = angleFromPoint(location, center: center)
+        
+        // 计算角度变化（考虑跨越0/360边界）
+        var angleDelta = currentAngle - previousDragAngle
+        
+        // 🔴 修复：正确处理跨越0/360边界的情况
+        if angleDelta > 180 {
+            angleDelta -= 360
+        } else if angleDelta < -180 {
+            angleDelta += 360
+        }
+        
+        // 🔴 新增：过滤微小移动，防止指针乱跳
+        if abs(angleDelta) < minimumDragDistance {
+            // 角度变化太小，忽略
+            return
+        }
+        
+        // 计算速度
+        if timeDelta > 0 {
+            dragVelocity = angleDelta / timeDelta * dragSensitivity
+            
+            // 🔴 限制最大速度，防止过快
+            let maxVelocity: Double = 300.0
+            if dragVelocity > maxVelocity {
+                dragVelocity = maxVelocity
+            } else if dragVelocity < -maxVelocity {
+                dragVelocity = -maxVelocity
+            }
+        }
+        
+        // 🔴 改进：应用磁吸效果（接近刻度时自动对齐）
+        let snappedAngleDelta = applyMagneticSnapToAngleDelta(angleDelta)
+        
+        // 更新角度
+        let newAngle = normalizeAngle(viewModel.currentAngle + snappedAngleDelta)
+        viewModel.currentAngle = newAngle
+        viewModel.totalRotation += abs(snappedAngleDelta)
+        
+        // 更新拖拽状态
+        previousDragAngle = currentAngle
+        lastDragTime = now
+        
+        // 🔴 修改：只在经过主要刻度时播放触觉反馈
+        let currentRoundedAngle = round(newAngle / 30) * 30  // 每30度一个主要刻度
+        let previousRoundedAngle = round(previousAngle / 30) * 30
+        
+        if abs(currentRoundedAngle - previousRoundedAngle) >= 30 {
+            // 轻微触觉反馈
+            HapticManager.shared.playClick()
+        }
+        
+        previousAngle = newAngle
+    }
+    
+    /// 处理拖拽结束
+    private func handleDragEnd() {
+        // 🔴 修改：根据速度阈值决定是否应用惯性
+        if abs(dragVelocity) > velocityThreshold {
+            applyInertia()
+        } else {
+            // 速度太小，直接对齐到最近的刻度
+            snapToNearestMagneticAngle()
+            // 轻微振动反馈
+            HapticManager.shared.playClick()
+        }
+    }
+    
+    /// 🔴 新增：对角度变化应用磁吸效果
+    private func applyMagneticSnapToAngleDelta(_ angleDelta: Double) -> Double {
+        let currentAngle = viewModel.currentAngle
+        let targetAngle = normalizeAngle(currentAngle + angleDelta)
+        
+        // 计算最近的磁吸点（每magneticStep度一个）
+        let steps = round(targetAngle / magneticStep)
+        let snappedAngle = steps * magneticStep
+        
+        // 计算到磁吸点的距离
+        let distanceToSnap = snappedAngle - targetAngle
+        
+        // 如果非常接近磁吸点，应用磁吸效果
+        if abs(distanceToSnap) < magneticStep * 0.4 {
+            // 计算磁吸强度
+            let snapStrength = 1.0 - (abs(distanceToSnap) / (magneticStep * 0.4))
+            
+            // 应用磁吸力 - 让指针更容易停在刻度上
+            let magneticPull = distanceToSnap * magneticStrength * snapStrength
+            
+            // 返回调整后的角度变化
+            return angleDelta + magneticPull
+        }
+        
+        return angleDelta
+    }
+    
+    /// 惯性效果 - 修复：避免使用 weak self，因为self是结构体
+    private func applyInertia() {
+        // 创建局部变量来捕获当前状态
+        var currentVelocity = dragVelocity
+        let velocityDamping = self.velocityDamping
+        
+        // 使用DispatchQueue来模拟惯性，而不是Timer
+        var shouldContinue = true
+        
+        func performInertiaStep() {
+            guard shouldContinue else { return }
+            
+            // 应用阻尼
+            currentVelocity *= velocityDamping
+            
+            // 如果速度太小，停止惯性
+            if abs(currentVelocity) < 10.0 {
+                shouldContinue = false
+                snapToNearestMagneticAngle()
+                return
+            }
+            
+            // 计算角度变化
+            let angleDelta = currentVelocity * 0.016 // 时间步长
+            
+            // 对惯性运动也应用磁吸效果
+            let snappedAngleDelta = applyMagneticSnapToAngleDelta(angleDelta)
+            let newAngle = normalizeAngle(viewModel.currentAngle + snappedAngleDelta)
+            
+            // 在主线程更新
+            DispatchQueue.main.async {
+                self.viewModel.currentAngle = newAngle
+                self.viewModel.totalRotation += abs(snappedAngleDelta)
+            }
+            
+            // 安排下一步
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.016) {
+                if shouldContinue {
+                    performInertiaStep()
+                }
+            }
+        }
+        
+        // 开始惯性
+        performInertiaStep()
+        
+        // 设置一个超时，防止无限循环
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            shouldContinue = false
+        }
+    }
+    
+    /// 对齐到最近的磁吸角度
+    private func snapToNearestMagneticAngle() {
+        let currentAngle = viewModel.currentAngle
+        let steps = round(currentAngle / magneticStep)
+        let targetAngle = steps * magneticStep
+        
+        // 如果已经接近目标角度，直接设置
+        let angleDiff = abs(targetAngle - currentAngle)
+        if angleDiff < 1.0 {
+            viewModel.currentAngle = normalizeAngle(targetAngle)
+        } else {
+            // 使用弹簧动画平滑移动到目标角度
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                viewModel.currentAngle = normalizeAngle(targetAngle)
+            }
+        }
+        
+        // 轻微触觉反馈
+        HapticManager.shared.playClick()
+    }
+    
+    /// 从点计算角度
+    private func angleFromPoint(_ point: CGPoint, center: CGPoint) -> Double {
+        let deltaX = point.x - center.x
+        let deltaY = point.y - center.y
+        let angle = atan2(deltaY, deltaX) * 180 / .pi
+        
+        // 转换为0-360范围，0度在右侧（3点钟方向）
+        var normalizedAngle = angle
+        if normalizedAngle < 0 {
+            normalizedAngle += 360
+        }
+        
+        // 调整到12点在顶部（减去90度）
+        let adjustedAngle = normalizedAngle - 90
+        return normalizeAngle(adjustedAngle)
     }
     
     /// 更新红色轨迹角度
@@ -299,7 +531,7 @@ struct InnerRedTrailRing: View {
     }
 }
 
-// MARK: - 子组件
+// MARK: - 子组件（保持不变，使用原来的代码）
 
 struct ParticleBackground: View {
     let center: CGPoint
@@ -650,7 +882,7 @@ struct DialBaseTicks: View {
     }
 }
 
-// 延伸指针子视图 - 修复指针方向
+// 🔴 修改：延伸指针子视图 - 添加引导点击的蓝点和圆圈
 struct ExtendedPointer: View {
     let outerRadius: CGFloat
     let currentAngle: Double
@@ -704,24 +936,34 @@ struct ExtendedPointer: View {
             }
             .shadow(color: bubbleBlue.opacity(0.4), radius: 4, x: 0, y: 0)
             
-            // 指针顶端圆点（在最外侧）
-            Circle()
-                .fill(
-                    RadialGradient(
-                        gradient: Gradient(colors: [
-                            bubbleBlue,
-                            bubbleBlue.opacity(0.7),
-                            .clear
-                        ]),
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 6
+            // 🔴 修改：指针顶端引导点击的蓝点和圆圈
+            ZStack {
+                // 外圈圆圈 - 用于强调引导，与蓝点有间隔
+                Circle()
+                    .stroke(bubbleBlue.opacity(0.6), lineWidth: 1.5)
+                    .frame(width: 22, height: 22)
+                    .blur(radius: 0.5)
+                    .shadow(color: bubbleBlue.opacity(0.3), radius: 2, x: 0, y: 0)
+                
+                // 主蓝点 - 径向渐变，有发光效果
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            gradient: Gradient(colors: [
+                                bubbleBlue.opacity(0.9),
+                                bubbleBlue.opacity(0.7),
+                                bubbleBlue.opacity(0.4)
+                            ]),
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: 8
+                        )
                     )
-                )
-                .frame(width: 14, height: 14)
-                .offset(y: -centerRadius - pointerLength)
-                .rotationEffect(.degrees(currentAngle))
-                .shadow(color: bubbleBlue.opacity(0.8), radius: 4, x: 0, y: 0)
+                    .frame(width: 14, height: 14)
+                    .shadow(color: bubbleBlue.opacity(0.8), radius: 3, x: 0, y: 0)
+            }
+            .offset(y: -centerRadius - pointerLength) // 放在指针最顶端
+            .rotationEffect(.degrees(currentAngle))
             
             // 指针底部连接点（在红色圆盘边缘）
             Circle()

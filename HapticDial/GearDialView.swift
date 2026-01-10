@@ -5,7 +5,7 @@ import Combine
 struct GearDialView: View {
     @ObservedObject var viewModel: GearDialViewModel
     
-    let size: CGFloat = 120
+    let size: CGFloat = 160
     
     // 颜色定义 - 修改外圈环为白色，数字为红色
     private let metalBaseColor = Color(red: 0.7, green: 0.7, blue: 0.75)
@@ -69,16 +69,19 @@ struct GearDialView: View {
             
             // 8. 旋转次数显示（无背景）
             Text("\(viewModel.spinCount)")
-                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .font(.system(size: 32, weight: .bold, design: .rounded))
                 .foregroundColor(numberColor)  // 修改为红色
                 .shadow(color: numberColor.opacity(0.5), radius: 8, x: 0, y: 0)
                 .zIndex(1)
             
+            // 9. 🔴 添加 GEAR 标签 - 放在转盘下方，距离合适
+            Text("GEAR")
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.7))
+                .offset(y: size * 0.63) // 🔴 调整到转盘下方合适距离
+                .zIndex(4) // 确保在最上层
+            
             // 重置按钮（长按）
-            .onLongPressGesture(minimumDuration: 1.0) {
-                viewModel.resetCount()
-                HapticManager.shared.playClick()
-            }
         }
         .frame(width: size, height: size)
         .rotationEffect(.degrees(viewModel.rotationAngle))
@@ -100,6 +103,10 @@ struct GearDialView: View {
                     lineWidth: 1
                 )
         )
+        .onLongPressGesture(minimumDuration: 1.0) {
+            viewModel.resetCount()
+            HapticManager.shared.playClick()
+        }
     }
     
     // 主刻度线（每30度一个）- 白色
@@ -187,7 +194,7 @@ struct GearDialView: View {
         
         return AnyView(
             Text(label)
-                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                .font(.system(size: 18, weight: .bold, design: .monospaced))
                 .foregroundColor(numberColor)  // 修改为红色
                 .position(x: labelX, y: labelY)
         )

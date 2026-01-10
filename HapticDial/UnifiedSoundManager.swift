@@ -20,13 +20,22 @@ class UnifiedSoundManager: ObservableObject {
         let systemSoundID: UInt32?
         var isUserCustom: Bool = false
         
+        // 🔴 新增：标识是否是内置的自定义音效
+        var isBuiltInCustom: Bool = false
+        
         // 计算属性，用于 UI 显示
         var displayName: String { name }
         var description: String {
-            type == .system ? "System sound effect" : "Custom sound effect"
+            if isBuiltInCustom {
+                return "Built-in sound effect"
+            }
+            return type == .system ? "System sound effect" : "Custom sound effect"
         }
         var category: String {
-            type == .system ? "System" : "Custom"
+            if isBuiltInCustom {
+                return "Built-in"
+            }
+            return type == .system ? "System" : "Custom"
         }
         
         // 获取首字母
@@ -51,6 +60,20 @@ class UnifiedSoundManager: ObservableObject {
         SoundOption(id: "none", name: "Mute", type: .system, soundFile: nil, systemSoundID: nil)
     ]
     
+    // 🔴 新增：内置自定义音效
+    private let builtInCustomSounds: [SoundOption] = [
+        SoundOption(id: "builtin_large_bell", name: "Large Bell", type: .custom,
+                   soundFile: "Budda_large_bell.caf", systemSoundID: nil, isUserCustom: false, isBuiltInCustom: true),
+        SoundOption(id: "builtin_small_bell", name: "Small Bell", type: .custom,
+                   soundFile: "Budda_small_bell.caf", systemSoundID: nil, isUserCustom: false, isBuiltInCustom: true),
+        SoundOption(id: "builtin_sword", name: "Sword", type: .custom,
+                   soundFile: "sword.caf", systemSoundID: nil, isUserCustom: false, isBuiltInCustom: true),
+        SoundOption(id: "builtin_ikkyu_san", name: "Ikkyu San", type: .custom,
+                   soundFile: "Ikkyu_san.caf", systemSoundID: nil, isUserCustom: false, isBuiltInCustom: true),
+        SoundOption(id: "builtin_knife", name: "Knife", type: .custom,
+                   soundFile: "knife.caf", systemSoundID: nil, isUserCustom: false, isBuiltInCustom: true)
+    ]
+    
     // 用户自定义音效
     @Published var userCustomSounds: [SoundOption] = []
     
@@ -63,10 +86,16 @@ class UnifiedSoundManager: ObservableObject {
         }
     }
     
+    // 🔴 新增：声音ID缓存，解决播放不完整问题
+    private var soundIDCache: [String: SystemSoundID] = [:]
+    
     // MARK: - 公开的属性
     
     var availableSounds: [SoundOption] {
         var allSounds = systemSoundOptions
+        // 🔴 将内置自定义音效添加到系统音效后面
+        allSounds.append(contentsOf: builtInCustomSounds)
+        // 🔴 用户自定义音效放在最后
         allSounds.append(contentsOf: userCustomSounds)
         return allSounds
     }
@@ -74,6 +103,9 @@ class UnifiedSoundManager: ObservableObject {
     var categories: [String] {
         var categories = ["All"]
         categories.append("System")
+        if !builtInCustomSounds.isEmpty {
+            categories.append("Built-in") // 🔴 新增内置音效分类
+        }
         if !userCustomSounds.isEmpty {
             categories.append("Custom")
         }
@@ -117,6 +149,70 @@ class UnifiedSoundManager: ObservableObject {
         }
     }
     
+    // MARK: - 音效播放
+    
+    func playSound(_ sound: SoundOption) {
+        if let systemSoundID = sound.systemSoundID {
+            AudioServicesPlaySystemSound(systemSoundID)
+        } else if let soundFile = sound.soundFile {
+            var soundURL: URL
+            
+            // 🔴 区分内置自定义音效和用户自定义音效
+            if sound.isBuiltInCustom {
+                // 内置音效从app bundle中加载
+                if let bundleURL = Bundle.main.url(forResource: soundFile, withExtension: nil) {
+                    soundURL = bundleURL
+                } else {
+                    print("❌ Built-in sound file not found: \(soundFile)")
+                    return
+                }
+            } else {
+                // 用户自定义音效从文档目录加载
+                soundURL = userCustomSoundsURL.appendingPathComponent(soundFile)
+            }
+            
+            // 检查文件是否存在
+            guard FileManager.default.fileExists(atPath: soundURL.path) else {
+                print("❌ Sound file not found at: \(soundURL.path)")
+                return
+            }
+            
+            let cacheKey = soundFile + (sound.isBuiltInCustom ? "_builtin" : "_custom")
+            
+            // 🔴 使用缓存的声音ID，避免播放不完整
+            if let cachedSoundID = soundIDCache[cacheKey] {
+                AudioServicesPlaySystemSound(cachedSoundID)
+                print("✅ Using cached sound ID for: \(soundFile)")
+            } else {
+                var soundID: SystemSoundID = 0
+                let status = AudioServicesCreateSystemSoundID(soundURL as CFURL, &soundID)
+                
+                if status == noErr {
+                    // 🔴 缓存声音ID，不要立即释放
+                    soundIDCache[cacheKey] = soundID
+                    AudioServicesPlaySystemSound(soundID)
+                    print("✅ Created and cached sound ID for: \(soundFile)")
+                } else {
+                    print("❌ Failed to create system sound ID for: \(soundFile), error: \(status)")
+                }
+            }
+        }
+    }
+    
+    // 🔴 添加清理缓存的方法
+    func clearSoundCache() {
+        for (_, soundID) in soundIDCache {
+            AudioServicesDisposeSystemSoundID(soundID)
+        }
+        soundIDCache.removeAll()
+        print("✅ Cleared sound cache")
+    }
+    
+    // 🔴 在deinit中清理资源
+    deinit {
+        clearSoundCache()
+    }
+    
     // MARK: - 用户自定义音效管理
     
     private func ensureCustomSoundsDirectory() {
@@ -136,8 +232,9 @@ class UnifiedSoundManager: ObservableObject {
     func importCustomSound(from url: URL) throws {
         let fileManager = FileManager.default
         
-        // 检查文件扩展名
-        guard url.pathExtension.lowercased() == "caf" else {
+        // 检查文件扩展名 - 放宽限制，支持常见音频格式
+        let validExtensions = ["caf", "wav", "mp3", "m4a", "aiff"]
+        guard validExtensions.contains(url.pathExtension.lowercased()) else {
             throw ImportError.invalidFileFormat
         }
         
@@ -161,6 +258,7 @@ class UnifiedSoundManager: ObservableObject {
             .replacingOccurrences(of: ".wav", with: "")
             .replacingOccurrences(of: ".mp3", with: "")
             .replacingOccurrences(of: ".m4a", with: "")
+            .replacingOccurrences(of: ".aiff", with: "")
             .replacingOccurrences(of: "_", with: " ")
             .capitalized
         
@@ -171,7 +269,8 @@ class UnifiedSoundManager: ObservableObject {
             type: .custom,
             soundFile: fileName,
             systemSoundID: nil,
-            isUserCustom: true
+            isUserCustom: true,
+            isBuiltInCustom: false // 🔴 用户自定义音效不是内置的
         )
         
         // 添加到列表
@@ -210,7 +309,8 @@ class UnifiedSoundManager: ObservableObject {
                         type: .custom,
                         soundFile: soundFile,
                         systemSoundID: nil,
-                        isUserCustom: true
+                        isUserCustom: true,
+                        isBuiltInCustom: false
                     )
                 }
                 return nil
@@ -220,7 +320,7 @@ class UnifiedSoundManager: ObservableObject {
         // 扫描目录中的文件（备用方法）
         do {
             let files = try fileManager.contentsOfDirectory(at: userCustomSoundsURL, includingPropertiesForKeys: nil)
-            let audioFiles = files.filter { ["caf", "wav", "mp3", "m4a"].contains($0.pathExtension.lowercased()) }
+            let audioFiles = files.filter { ["caf", "wav", "mp3", "m4a", "aiff"].contains($0.pathExtension.lowercased()) }
             
             for fileURL in audioFiles {
                 let fileName = fileURL.lastPathComponent
@@ -231,6 +331,7 @@ class UnifiedSoundManager: ObservableObject {
                         .replacingOccurrences(of: ".wav", with: "")
                         .replacingOccurrences(of: ".mp3", with: "")
                         .replacingOccurrences(of: ".m4a", with: "")
+                        .replacingOccurrences(of: ".aiff", with: "")
                         .replacingOccurrences(of: "_", with: " ")
                         .capitalized
                     
@@ -240,7 +341,8 @@ class UnifiedSoundManager: ObservableObject {
                         type: .custom,
                         soundFile: fileName,
                         systemSoundID: nil,
-                        isUserCustom: true
+                        isUserCustom: true,
+                        isBuiltInCustom: false
                     )
                     userCustomSounds.append(soundOption)
                 }
@@ -317,6 +419,8 @@ class UnifiedSoundManager: ObservableObject {
             return availableSounds
         } else if category == "System" {
             return systemSoundOptions
+        } else if category == "Built-in" {
+            return builtInCustomSounds
         } else if category == "Custom" {
             return userCustomSounds
         }
@@ -344,21 +448,6 @@ class UnifiedSoundManager: ObservableObject {
         print("🔄 UnifiedSoundManager refreshed sound options")
     }
     
-    // MARK: - 播放音效
-    
-    func playSound(_ sound: SoundOption) {
-        if let systemSoundID = sound.systemSoundID {
-            AudioServicesPlaySystemSound(systemSoundID)
-        } else if let soundFile = sound.soundFile {
-            // 播放自定义音效文件的逻辑
-            let soundURL = userCustomSoundsURL.appendingPathComponent(soundFile)
-            var soundID: SystemSoundID = 0
-            AudioServicesCreateSystemSoundID(soundURL as CFURL, &soundID)
-            AudioServicesPlaySystemSound(soundID)
-            AudioServicesDisposeSystemSoundID(soundID)
-        }
-    }
-    
     // MARK: - 错误类型
     
     enum ImportError: LocalizedError {
@@ -368,7 +457,7 @@ class UnifiedSoundManager: ObservableObject {
         var errorDescription: String? {
             switch self {
             case .invalidFileFormat:
-                return "Only .caf format sound files are supported"
+                return "Only .caf, .wav, .mp3, .m4a, .aiff format sound files are supported"
             case .fileTooLarge:
                 return "Sound file cannot exceed 5MB"
             }

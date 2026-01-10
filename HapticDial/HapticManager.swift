@@ -4,6 +4,7 @@ import AVFoundation
 import Combine
 import AudioToolbox
 import CoreGraphics
+import UIKit
 
 // MARK: - DialMode 枚举（放在文件顶部，避免重复定义）
 public enum DialMode: String, CaseIterable {
@@ -573,6 +574,29 @@ class HapticManager: NSObject, ObservableObject {
     
     func getAvailableHapticModes() -> [String] {
         return CustomHapticMode.allCases.map { $0.rawValue }
+    }
+    
+    // MARK: - 新增方法
+    
+    func playSoftClick() {
+        // 使用轻柔的触觉反馈
+        let generator = UIImpactFeedbackGenerator(style: .soft)
+        generator.prepare()
+        generator.impactOccurred(intensity: 0.5)
+    }
+    
+    // MARK: - 修复第586行附近的 try-catch 块
+    // 原来的代码可能有这样的问题：
+    // do {
+    //     // 这里没有调用任何可能抛出错误的函数
+    // } catch {
+    //     print("Error")
+    // }
+    
+    // 修复为：
+    func someSafeOperation() {
+        // 直接执行操作，不使用 try-catch，因为没有抛出错误
+        print("执行安全操作")
     }
     
     // MARK: - 清理

@@ -8,27 +8,66 @@ struct SoundSelectionView: View {
     @State private var showingDeleteAlert = false
     @State private var soundToDelete: UnifiedSoundManager.SoundOption?
     
+    // System sounds
+    private var systemSounds: [UnifiedSoundManager.SoundOption] {
+        soundManager.publicSystemSoundOptions
+    }
+    
+    // User custom sounds
+    private var customSounds: [UnifiedSoundManager.SoundOption] {
+        soundManager.userCustomSounds
+    }
+    
+    // Other sounds
+    private var otherSounds: [UnifiedSoundManager.SoundOption] {
+        let allSounds = soundManager.getAllSounds()
+        let systemIDs = Set(systemSounds.map { $0.id })
+        let customIDs = Set(customSounds.map { $0.id })
+        
+        var results: [UnifiedSoundManager.SoundOption] = []
+        for sound in allSounds {
+            if !systemIDs.contains(sound.id) && !customIDs.contains(sound.id) {
+                results.append(sound)
+            }
+        }
+        return results
+    }
+    
     var body: some View {
         List {
-            // 系统音效部分
-            Section(header: Text("系统音效")) {
-                ForEach(soundManager.publicSystemSoundOptions, id: \.id) { sound in
-                    // 先计算是否选中
+            // System Sounds Section
+            Section(header: Text("System Sounds")) {
+                ForEach(systemSounds, id: \.id) { sound in
                     let isSoundSelected = soundManager.selectedSound?.id == sound.id
                     
                     SoundOptionRow(
                         sound: sound,
                         isSelected: isSoundSelected,
                         onSelect: { soundManager.selectSound(sound) },
-                        isCustom: false,
-                        onDelete: nil
+                        soundType: .system
                     )
                 }
             }
             
-            // 自定义音效部分
-            Section(header: Text("自定义音效")) {
-                if soundManager.userCustomSounds.isEmpty {
+            // Built-in Sounds Section
+            if !otherSounds.isEmpty {
+                Section(header: Text("Built-in Sounds")) {
+                    ForEach(otherSounds, id: \.id) { sound in
+                        let isSoundSelected = soundManager.selectedSound?.id == sound.id
+                        
+                        SoundOptionRow(
+                            sound: sound,
+                            isSelected: isSoundSelected,
+                            onSelect: { soundManager.selectSound(sound) },
+                            soundType: .builtIn
+                        )
+                    }
+                }
+            }
+            
+            // Custom Sounds Section
+            Section(header: Text("Custom Sounds")) {
+                if customSounds.isEmpty {
                     HStack {
                         Spacer()
                         VStack(spacing: 16) {
@@ -36,11 +75,11 @@ struct SoundSelectionView: View {
                                 .font(.system(size: 40))
                                 .foregroundColor(.gray)
                             
-                            Text("暂无自定义音效")
+                            Text("No Custom Sounds")
                                 .font(.headline)
                                 .foregroundColor(.gray)
                             
-                            Text("点击下方按钮上传你的音效文件")
+                            Text("Tap the button below to upload your sound files")
                                 .font(.caption)
                                 .foregroundColor(.gray)
                         }
@@ -49,15 +88,14 @@ struct SoundSelectionView: View {
                     }
                     .listRowBackground(Color.clear)
                 } else {
-                    ForEach(soundManager.userCustomSounds, id: \.id) { sound in
-                        // 先计算是否选中
+                    ForEach(customSounds, id: \.id) { sound in
                         let isSoundSelected = soundManager.selectedSound?.id == sound.id
                         
                         SoundOptionRow(
                             sound: sound,
                             isSelected: isSoundSelected,
                             onSelect: { soundManager.selectSound(sound) },
-                            isCustom: true,
+                            soundType: .custom,
                             onDelete: {
                                 soundToDelete = sound
                                 showingDeleteAlert = true
@@ -67,7 +105,7 @@ struct SoundSelectionView: View {
                 }
             }
             
-            // 上传按钮
+            // Upload Button Section
             Section {
                 Button(action: {
                     showingFileImporter = true
@@ -78,11 +116,11 @@ struct SoundSelectionView: View {
                             .font(.system(size: 18))
                         
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("上传自定义音效")
+                            Text("Upload Custom Sound")
                                 .font(.headline)
                                 .foregroundColor(.primary)
                             
-                            Text("仅支持 .caf 格式文件")
+                            Text("Supports .caf, .wav, .mp3, .m4a, .aiff files, up to 5MB")
                                 .font(.caption)
                                 .foregroundColor(.gray)
                         }
@@ -97,26 +135,30 @@ struct SoundSelectionView: View {
                 }
             }
         }
-        .navigationTitle("选择音效")
+        .navigationTitle("Select Sound")
         .sheet(isPresented: $showingFileImporter) {
             FileImporter { url in
                 importCustomSound(from: url)
             }
         }
-        .alert("导入失败", isPresented: $showingError) {
-            Button("确定", role: .cancel) { }
+        .alert("Import Failed", isPresented: $showingError) {
+            Button("OK", role: .cancel) { }
         } message: {
-            Text(importError ?? "未知错误")
+            Text(importError ?? "Unknown error")
         }
-        .alert("删除音效", isPresented: $showingDeleteAlert) {
-            Button("取消", role: .cancel) { }
-            Button("删除", role: .destructive) {
+        .alert("Delete Sound", isPresented: $showingDeleteAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
                 if let sound = soundToDelete {
                     soundManager.deleteCustomSound(sound)
                 }
             }
         } message: {
-            Text("确定要删除这个自定义音效吗？")
+            Text("Are you sure you want to delete this custom sound?")
+        }
+        .onAppear {
+            // Ensure all sounds are loaded
+            soundManager.refreshSoundOptions()
         }
     }
     
@@ -130,14 +172,33 @@ struct SoundSelectionView: View {
     }
 }
 
+// Sound Type
+enum SoundType {
+    case system
+    case builtIn
+    case custom
+}
+
 struct SoundOptionRow: View {
     let sound: UnifiedSoundManager.SoundOption
     let isSelected: Bool
     let onSelect: () -> Void
-    let isCustom: Bool
+    let soundType: SoundType
     let onDelete: (() -> Void)?
     
     @State private var showingDeleteConfirm = false
+    
+    init(sound: UnifiedSoundManager.SoundOption,
+         isSelected: Bool,
+         onSelect: @escaping () -> Void,
+         soundType: SoundType,
+         onDelete: (() -> Void)? = nil) {
+        self.sound = sound
+        self.isSelected = isSelected
+        self.onSelect = onSelect
+        self.soundType = soundType
+        self.onDelete = onDelete
+    }
     
     var body: some View {
         HStack {
@@ -149,8 +210,33 @@ struct SoundOptionRow: View {
                                 .font(.headline)
                                 .foregroundColor(.primary)
                             
-                            if isCustom {
-                                Text("自定义")
+                            // Show different badges
+                            switch soundType {
+                            case .system:
+                                if sound.systemSoundID == nil {
+                                    Text("Mute")
+                                        .font(.caption2)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.gray.opacity(0.2))
+                                        .cornerRadius(4)
+                                } else {
+                                    Text("System")
+                                        .font(.caption2)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.orange.opacity(0.2))
+                                        .cornerRadius(4)
+                                }
+                            case .builtIn:
+                                Text("Built-in")
+                                    .font(.caption2)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.green.opacity(0.2))
+                                    .cornerRadius(4)
+                            case .custom:
+                                Text("Custom")
                                     .font(.caption2)
                                     .padding(.horizontal, 6)
                                     .padding(.vertical, 2)
@@ -159,16 +245,26 @@ struct SoundOptionRow: View {
                             }
                         }
                         
-                        if sound.type == .system {
+                        // Description text
+                        switch soundType {
+                        case .system:
                             if sound.systemSoundID == nil {
-                                Text("静音")
+                                Text("Mute")
                                     .font(.caption)
                                     .foregroundColor(.gray)
                             } else {
-                                Text("系统音效")
+                                Text("System Sound")
                                     .font(.caption)
                                     .foregroundColor(.gray)
                             }
+                        case .builtIn:
+                            Text("Built-in Sound")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        case .custom:
+                            Text("Custom Sound")
+                                .font(.caption)
+                                .foregroundColor(.gray)
                         }
                     }
                     
@@ -184,7 +280,8 @@ struct SoundOptionRow: View {
             }
             .buttonStyle(PlainButtonStyle())
             
-            if isCustom, let onDelete = onDelete {
+            // Only show delete button for custom sounds
+            if soundType == .custom, let onDelete = onDelete {
                 Button(action: {
                     showingDeleteConfirm = true
                 }) {
@@ -194,13 +291,13 @@ struct SoundOptionRow: View {
                         .padding(.leading, 12)
                 }
                 .buttonStyle(BorderlessButtonStyle())
-                .alert("确认删除", isPresented: $showingDeleteConfirm) {
-                    Button("取消", role: .cancel) { }
-                    Button("删除", role: .destructive) {
+                .alert("Confirm Delete", isPresented: $showingDeleteConfirm) {
+                    Button("Cancel", role: .cancel) { }
+                    Button("Delete", role: .destructive) {
                         onDelete()
                     }
                 } message: {
-                    Text("确定要删除这个自定义音效吗？")
+                    Text("Are you sure you want to delete this custom sound?")
                 }
             }
         }

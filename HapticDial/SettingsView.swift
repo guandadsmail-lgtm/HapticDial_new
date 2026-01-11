@@ -407,45 +407,8 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                 }
                 
-                // 应用信息
-                Section {
-                    HStack {
-                        Text("Version")
-                        Spacer()
-                        Text("1.0.0")
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    HStack {
-                        Text("Build")
-                        Spacer()
-                        Text("1001")
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    HStack {
-                        Text("Developer")
-                        Spacer()
-                        Text("HapticDial Team")
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Button(action: {
-                        // 显示关于页面或开发者信息
-                        showAboutInfo()
-                    }) {
-                        HStack {
-                            Text("About & Credits")
-                                .foregroundColor(.primary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                } header: {
-                    Text("About")
-                }
+             
+              
             }
             .listStyle(InsetGroupedListStyle())
             .navigationTitle("Settings")

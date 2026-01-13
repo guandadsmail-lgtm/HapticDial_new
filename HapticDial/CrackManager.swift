@@ -1,4 +1,3 @@
-// Core/CrackManager.swift
 import SwiftUI
 import Combine
 import AVFoundation
@@ -19,14 +18,13 @@ class CrackManager: ObservableObject {
     private var startTime: Date?
     private var currentCrackCenterIndex = 0  // 当前正在生成的破裂中心点索引
     
-    // 移除原有的 screenSize，改为在触发时从 GeometryReader 获取
     private var currentScreenSize: CGSize?
-    
-    // 裂纹中心点数组
     private var crackCenters: [CGPoint] = []
+    private var isCrackGenerationComplete = false
+    private var isStopping = false
+    private var isActive = false  // 新增：标记是否处于活动状态
     
     private init() {
-        // 从UserDefaults加载设置
         let defaults = UserDefaults.standard
         crackSoundEnabled = defaults.object(forKey: "crack_sound") as? Bool ?? true
         print("💥 CrackManager 初始化完成")
@@ -35,35 +33,33 @@ class CrackManager: ObservableObject {
     func triggerCrack(at position: CGPoint? = nil, screenSize: CGSize? = nil) {
         print("💥 ======== 开始触发玻璃破裂效果 ========")
         
-        // 使用传入的屏幕尺寸
+        // 如果已经在运行，不要重新触发
+        if isActive {
+            print("💥 裂纹效果已经在运行中，跳过此次触发")
+            return
+        }
+        
         guard let screenSizeToUse = screenSize else {
             print("💥 错误：没有提供屏幕尺寸")
             return
         }
         
         currentScreenSize = screenSizeToUse
-        
         print("💥 使用的屏幕尺寸: \(screenSizeToUse)")
-        print("💥 当前位置状态: showCracks=\(showCracks)")
-        
-        guard !showCracks else {
-            print("💥 裂纹效果已经在显示中，跳过")
-            return
-        }
         
         // 重置状态
+        resetState()
+        isActive = true
         showCracks = true
         crackOpacity = 1.0
-        cracks.removeAll()
-        currentCrackCenterIndex = 0
+        startTime = Date()
         
         // 创建破裂中心点
         createCrackCenters(screenSize: screenSizeToUse)
-        
-        // 记录开始时间
-        startTime = Date()
-        
         print("💥 破裂起始位置: 多中心点，数量: \(crackCenters.count)")
+        
+        // 确保音频会话已激活
+        setupAudioSession()
         
         // 播放破裂音效
         if crackSoundEnabled {
@@ -75,12 +71,10 @@ class CrackManager: ObservableObject {
         playHeavyHaptic()
         print("💥 播放强力触觉反馈")
         
-        // 开始生成第一个裂纹（第一个中心点）
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            self?.generateCrackFromCenter(index: 0)
-        }
+        // 立即生成第一个中心点的裂纹
+        generateCrackFromCenter(index: 0)
         
-        // 开始裂纹生成定时器（每隔4-7秒生成一个中心点的裂纹）
+        // 开始裂纹生成定时器
         startCrackGenerationTimer()
         
         // 开始裂纹扩展动画
@@ -90,25 +84,43 @@ class CrackManager: ObservableObject {
         // 30秒后停止效果
         DispatchQueue.main.asyncAfter(deadline: .now() + crackDuration) { [weak self] in
             Task { @MainActor in
+                guard let self = self, self.isActive else { return }
                 print("💥 30秒时间到，停止裂纹效果")
-                self?.stopCracks()
+                self.stopCracks()
             }
         }
         
         print("💥 玻璃破裂效果已成功启动，将在30秒内缓慢生成")
     }
     
-    private func createCrackCenters(screenSize: CGSize) {
-        // 创建3-5个破裂中心点（比原来少一些）
-        let centerCount = Int.random(in: 3...5)
+    private func resetState() {
+        isStopping = false
+        isCrackGenerationComplete = false
+        cracks.removeAll()
+        currentCrackCenterIndex = 0
         crackCenters.removeAll()
+        timer?.invalidate()
+        timer = nil
+        crackGenerationTimer?.invalidate()
+        crackGenerationTimer = nil
+    }
+    
+    private func setupAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("💥 CrackManager 音频会话设置失败: \(error)")
+        }
+    }
+    
+    private func createCrackCenters(screenSize: CGSize) {
+        let centerCount = Int.random(in: 3...5)
         
         for i in 0..<centerCount {
-            // 确保中心点不要太靠近边缘
             let x = CGFloat.random(in: screenSize.width * 0.2...screenSize.width * 0.8)
             let y: CGFloat
             
-            // 按顺序从上到下分布中心点
             let sectionHeight = screenSize.height / CGFloat(centerCount + 1)
             y = sectionHeight * CGFloat(i + 1) + CGFloat.random(in: -30...30)
             
@@ -119,20 +131,20 @@ class CrackManager: ObservableObject {
     }
     
     private func generateCrackFromCenter(index: Int) {
-        guard index < crackCenters.count else { return }
+        guard index < crackCenters.count else {
+            print("💥 索引超出范围: \(index)，中心点数量: \(crackCenters.count)")
+            return
+        }
         
         let center = crackCenters[index]
         print("💥 生成第 \(index+1) 个中心点的裂纹，位置: \(center)")
         
-        // 每个中心点生成3-5条主要裂纹（比原来少）
         let mainCrackCount = Int.random(in: 3...5)
         
         for i in 0..<mainCrackCount {
-            // 基础角度加上随机偏移
             let baseAngle = Double(i) * (360.0 / Double(mainCrackCount))
             let angle = baseAngle + Double.random(in: -30...30)
             
-            // 裂纹长度：延伸到屏幕边缘
             let maxLength = max(currentScreenSize?.width ?? 400, currentScreenSize?.height ?? 800) * 0.5
             let length = CGFloat.random(in: maxLength * 0.4...maxLength * 0.7)
             
@@ -140,12 +152,12 @@ class CrackManager: ObservableObject {
                 id: UUID(),
                 startPoint: center,
                 endPoint: calculateEndpoint(from: center, angle: angle, length: length),
-                thickness: CGFloat.random(in: 1.5...2.5),  // 更细的裂纹
+                thickness: CGFloat.random(in: 1.5...2.5),
                 depth: 1,
                 parentCrackId: nil,
                 hasSubCracks: true,
                 animationProgress: 0,
-                growthSpeed: Double.random(in: 0.01...0.02)  // 大幅降低生长速度
+                growthSpeed: Double.random(in: 0.01...0.02)
             )
             
             cracks.append(crack)
@@ -163,43 +175,82 @@ class CrackManager: ObservableObject {
     private func startCrackGenerationTimer() {
         crackGenerationTimer?.invalidate()
         
-        // 每隔4-7秒生成下一个中心点的裂纹
-        let interval = Double.random(in: 4.0...7.0)
+        currentCrackCenterIndex = 1
         
-        // 解决Timer的Swift 6兼容性问题
-        crackGenerationTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] timer in
-            guard let self = self else {
+        guard crackCenters.count > 1 else {
+            print("💥 只有一个中心点，不需要生成定时器")
+            isCrackGenerationComplete = true
+            return
+        }
+        
+        let nextInterval = Double.random(in: 4.0...7.0)
+        print("💥 将在 \(String(format: "%.1f", nextInterval)) 秒后生成下一个中心点")
+        
+        crackGenerationTimer = Timer.scheduledTimer(withTimeInterval: nextInterval, repeats: false) { [weak self] timer in
+            guard let self = self, self.isActive else {
                 timer.invalidate()
                 return
             }
             
-            // 在主线程执行
             DispatchQueue.main.async {
-                self.currentCrackCenterIndex += 1
-                
-                if self.currentCrackCenterIndex < self.crackCenters.count {
-                    // 生成下一个中心点的裂纹
-                    self.generateCrackFromCenter(index: self.currentCrackCenterIndex)
-                    
-                    // 播放轻微的触觉反馈
-                    self.playSubtleHaptic()
-                } else {
-                    // 所有中心点都已生成，停止生成定时器
-                    timer.invalidate()
-                    self.crackGenerationTimer = nil
-                    print("💥 所有中心点裂纹已生成完成")
-                }
+                self.generateNextCrackCenter(timer: timer)
             }
         }
     }
     
+    private func generateNextCrackCenter(timer: Timer) {
+        guard currentCrackCenterIndex < crackCenters.count else {
+            print("💥 所有中心点裂纹已生成完成")
+            timer.invalidate()
+            crackGenerationTimer = nil
+            isCrackGenerationComplete = true
+            return
+        }
+        
+        generateCrackFromCenter(index: currentCrackCenterIndex)
+        playSubtleHaptic()
+        
+        currentCrackCenterIndex += 1
+        
+        if currentCrackCenterIndex < crackCenters.count {
+            let nextInterval = Double.random(in: 4.0...7.0)
+            print("💥 将在 \(String(format: "%.1f", nextInterval)) 秒后生成下一个中心点")
+            
+            crackGenerationTimer = Timer.scheduledTimer(withTimeInterval: nextInterval, repeats: false) { [weak self] nextTimer in
+                guard let self = self, self.isActive else {
+                    nextTimer.invalidate()
+                    return
+                }
+                
+                DispatchQueue.main.async {
+                    self.generateNextCrackCenter(timer: nextTimer)
+                }
+            }
+        } else {
+            print("💥 所有中心点裂纹已生成完成")
+            timer.invalidate()
+            crackGenerationTimer = nil
+            isCrackGenerationComplete = true
+        }
+    }
+    
     private func playCrackSound() {
-        // 播放系统破裂声音
-        AudioServicesPlaySystemSound(1105) // 轻微破裂声
+        print("🔊 播放玻璃破裂音效")
+        
+        // 先播放系统破裂声音
+        AudioServicesPlaySystemSound(1105)
+        
+        // 主线程延迟播放更多音效
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            AudioServicesPlaySystemSound(1304)
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            AudioServicesPlaySystemSound(1108)
+        }
     }
     
     private func playSubtleHaptic() {
-        // 播放轻微的触觉反馈
         if CHHapticEngine.capabilitiesForHardware().supportsHaptics {
             do {
                 let engine = try CHHapticEngine()
@@ -216,22 +267,28 @@ class CrackManager: ObservableObject {
                 
             } catch {
                 print("轻微触觉反馈播放失败: \(error)")
+                let generator = UIImpactFeedbackGenerator(style: .light)
+                generator.impactOccurred()
             }
+        } else {
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
         }
     }
     
     private func playHeavyHaptic() {
-        // 播放强力的触觉反馈
+        let heavyGenerator = UIImpactFeedbackGenerator(style: .heavy)
+        heavyGenerator.prepare()
+        heavyGenerator.impactOccurred()
+        
         if CHHapticEngine.capabilitiesForHardware().supportsHaptics {
             do {
                 let engine = try CHHapticEngine()
                 try engine.start()
                 
-                // 创建更强烈的触觉反馈
                 let sharpness = CHHapticEventParameter(parameterID: .hapticSharpness, value: 1.0)
                 let intensity = CHHapticEventParameter(parameterID: .hapticIntensity, value: 1.0)
                 
-                // 多个触觉事件模拟玻璃破裂
                 let events = [
                     CHHapticEvent(eventType: .hapticTransient, parameters: [sharpness, intensity], relativeTime: 0),
                     CHHapticEvent(eventType: .hapticTransient, parameters: [sharpness, CHHapticEventParameter(parameterID: .hapticIntensity, value: 0.8)], relativeTime: 0.05),
@@ -244,6 +301,10 @@ class CrackManager: ObservableObject {
                 
             } catch {
                 print("触觉反馈播放失败: \(error)")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    let mediumGenerator = UIImpactFeedbackGenerator(style: .medium)
+                    mediumGenerator.impactOccurred()
+                }
             }
         }
     }
@@ -251,24 +312,24 @@ class CrackManager: ObservableObject {
     private func startCrackExpansion() {
         timer?.invalidate()
         
-        // 解决Timer的Swift 6兼容性问题
         timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] timer in
             guard let self = self else {
                 timer.invalidate()
                 return
             }
             
-            // 在主线程执行
             DispatchQueue.main.async {
-                // 扩展现有裂纹
+                guard self.isActive, !self.isStopping else {
+                    timer.invalidate()
+                    return
+                }
+                
                 self.expandExistingCracks()
                 
-                // 少量生成分支裂纹（减少频率）
-                if Double.random(in: 0...1) < 0.15 {  // 从40%降低到15%
+                if Double.random(in: 0...1) < 0.15 {
                     self.generateBranchCracks()
                 }
                 
-                // 逐渐淡出（最后5秒开始）
                 if let startTime = self.startTime {
                     let elapsed = Date().timeIntervalSince(startTime)
                     if elapsed > self.crackDuration - 5 {
@@ -281,7 +342,6 @@ class CrackManager: ObservableObject {
     
     private func expandExistingCracks() {
         for i in cracks.indices {
-            // 如果裂纹还没完全扩展
             if cracks[i].animationProgress < 1.0 {
                 cracks[i].animationProgress = min(1.0, cracks[i].animationProgress + cracks[i].growthSpeed)
             }
@@ -289,48 +349,42 @@ class CrackManager: ObservableObject {
     }
     
     private func generateBranchCracks() {
-        // 从现有的主要裂纹生成分支（大幅减少数量）
         var newCracks: [Crack] = []
         
         for crack in cracks where crack.depth < 3 && crack.animationProgress >= 0.7 && crack.hasSubCracks {
-            // 降低生成分支的几率
-            if Double.random(in: 0...1) < 0.2 {  // 从40%降低到20%
-                let branchCount = Int.random(in: 1...2)  // 减少分支数量
+            if Double.random(in: 0...1) < 0.2 {
+                let branchCount = Int.random(in: 1...2)
                 
                 for _ in 0..<branchCount {
-                    // 从裂纹的随机点生成分支
                     let randomProgress = CGFloat.random(in: 0.2...0.8)
                     let branchPoint = CGPoint(
                         x: crack.startPoint.x + (crack.endPoint.x - crack.startPoint.x) * randomProgress,
                         y: crack.startPoint.y + (crack.endPoint.y - crack.startPoint.y) * randomProgress
                     )
                     
-                    // 计算主裂纹的角度
                     let mainAngle = atan2(
                         crack.endPoint.y - crack.startPoint.y,
                         crack.endPoint.x - crack.startPoint.x
                     ) * 180 / Double.pi
                     
-                    // 分支角度在 ±20 到 ±70 度范围内
                     let branchAngle = mainAngle + Double.random(in: 20...70) * (Double.random(in: 0...1) > 0.5 ? 1 : -1)
-                    let branchLength = CGFloat.random(in: 30...80) / CGFloat(crack.depth + 1)  // 缩短分支长度
+                    let branchLength = CGFloat.random(in: 30...80) / CGFloat(crack.depth + 1)
                     
                     let branchCrack = Crack(
                         id: UUID(),
                         startPoint: branchPoint,
                         endPoint: calculateEndpoint(from: branchPoint, angle: branchAngle, length: branchLength),
-                        thickness: crack.thickness * 0.6,  // 分支更细
+                        thickness: crack.thickness * 0.6,
                         depth: crack.depth + 1,
                         parentCrackId: crack.id,
                         hasSubCracks: crack.depth < 2,
                         animationProgress: 0,
-                        growthSpeed: crack.growthSpeed * 0.8  // 分支生长更慢
+                        growthSpeed: crack.growthSpeed * 0.8
                     )
                     
                     newCracks.append(branchCrack)
                 }
                 
-                // 标记此裂纹已经生成了分支
                 if let index = cracks.firstIndex(where: { $0.id == crack.id }) {
                     cracks[index].hasSubCracks = false
                 }
@@ -341,7 +395,10 @@ class CrackManager: ObservableObject {
     }
     
     func stopCracks() {
+        guard isActive else { return }
+        
         print("💥 停止玻璃破裂效果")
+        isStopping = true
         
         timer?.invalidate()
         timer = nil
@@ -359,6 +416,10 @@ class CrackManager: ObservableObject {
                 self.showCracks = false
                 self.cracks.removeAll()
                 self.crackCenters.removeAll()
+                self.isStopping = false
+                self.isCrackGenerationComplete = false
+                self.isActive = false
+                print("💥 玻璃破裂效果已完全清除")
             }
         }
     }
@@ -366,6 +427,7 @@ class CrackManager: ObservableObject {
     func toggleSound() {
         crackSoundEnabled.toggle()
         UserDefaults.standard.set(crackSoundEnabled, forKey: "crack_sound")
+        print("💥 裂痕音效已\(crackSoundEnabled ? "启用" : "禁用")")
     }
     
     deinit {
@@ -374,15 +436,14 @@ class CrackManager: ObservableObject {
     }
 }
 
-// 裂纹数据模型
 struct Crack: Identifiable {
     let id: UUID
     let startPoint: CGPoint
     let endPoint: CGPoint
     let thickness: CGFloat
-    let depth: Int // 裂纹深度（层级）
-    let parentCrackId: UUID? // 父裂纹ID，用于构建裂纹树
-    var hasSubCracks: Bool // 是否还有未生成的分支
-    var animationProgress: Double // 动画进度 0.0-1.0
-    var growthSpeed: Double // 裂纹生长速度
+    let depth: Int
+    let parentCrackId: UUID?
+    var hasSubCracks: Bool
+    var animationProgress: Double
+    var growthSpeed: Double
 }

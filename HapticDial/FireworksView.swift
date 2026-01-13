@@ -4,12 +4,16 @@ import Combine
 
 struct FireworksView: View {
     @StateObject private var viewModel = FireworksViewModel()
+    @State private var isiPad = false
     
     var body: some View {
         // 使用完全透明的全屏视图作为基础
         Color.clear
             .overlay(
                 GeometryReader { geometry in
+                    // 检测设备类型
+                    let _ = detectDeviceType(geometry.size)
+                    
                     ZStack {
                         // 爆炸闪光（放在最底层）
                         ForEach(viewModel.flashes) { flash in
@@ -29,8 +33,12 @@ struct FireworksView: View {
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .allowsHitTesting(false)
                     .onAppear {
-                        print("🎆 FireworksView 出现，屏幕尺寸: \(geometry.size)")
+                        print("🎆 FireworksView 出现")
+                        print("🎆 屏幕尺寸: \(geometry.size)")
+                        print("🎆 设备类型: \(isiPad ? "iPad" : "iPhone")")
+                        
                         viewModel.screenSize = geometry.size
+                        viewModel.isiPad = isiPad
                         
                         // 立即开始烟火效果
                         viewModel.startFireworks()
@@ -45,6 +53,12 @@ struct FireworksView: View {
                 print("🎆 FireworksView 消失")
                 viewModel.stopFireworks()
             }
+    }
+    
+    private func detectDeviceType(_ size: CGSize) -> Bool {
+        // 简单的设备类型判断
+        isiPad = size.width > 500 && size.height > 1000
+        return isiPad
     }
 }
 
@@ -269,6 +283,7 @@ class FireworksViewModel: ObservableObject {
     @Published var flashes: [Flash] = []
     
     var screenSize: CGSize = .zero
+    var isiPad: Bool = false  // 新增：设备类型标识
     private var launchTimer: Timer?
     private var isActive = false
     private var fireworkCount = 0
@@ -297,6 +312,10 @@ class FireworksViewModel: ObservableObject {
     func startFireworks() {
         guard screenSize.width > 0, screenSize.height > 0 else { return }
         
+        print("🎆 开始烟火效果")
+        print("🎆 屏幕尺寸: \(screenSize)")
+        print("🎆 设备类型: \(isiPad ? "iPad" : "iPhone")")
+        
         isActive = true
         fireworkCount = 0
         topExplosions = 0
@@ -304,8 +323,6 @@ class FireworksViewModel: ObservableObject {
         bottomExplosions = 0
         totalExplosions = 0
         animationStartTime = Date()
-        
-        print("🎆 开始烟火效果，屏幕尺寸: \(screenSize)")
         
         // 清除现有效果
         fireworks.removeAll()
@@ -339,13 +356,6 @@ class FireworksViewModel: ObservableObject {
                 self?.stopFireworks()
             }
         }
-        
-        // 调试信息
-        DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
-            Task { @MainActor in
-                print("🎆 10秒后 - 顶部爆炸: \(self.topExplosions), 中部: \(self.middleExplosions), 底部: \(self.bottomExplosions)")
-            }
-        }
     }
     
     private func launchFireworksWave() {
@@ -369,14 +379,14 @@ class FireworksViewModel: ObservableObject {
         // 随机选择颜色
         let mainColor = selectRandomColor()
         
-        // 根据爆炸区域计算目标高度和速度
+        // 根据爆炸区域计算目标高度和速度（考虑设备类型）
         let (targetHeight, velocity) = calculateLaunchParameters(for: explosionZone)
         
         let firework = Firework(
             position: startPosition,
             velocity: velocity,
             color: mainColor,
-            size: 6,
+            size: isiPad ? 8 : 6,  // iPad上稍微大一点
             explosionZone: explosionZone
         )
         firework.targetHeight = targetHeight
@@ -476,8 +486,9 @@ class FireworksViewModel: ObservableObject {
         // 从屏幕底部 (screenSize.height + 50) 到目标高度
         let distance = abs((screenSize.height + 50) - targetHeight)
         
-        // 增加速度系数，确保能到达目标高度
-        let baseSpeed = distance * 0.025  // 从0.015增加到0.025，增加速度
+        // iPad需要更高的速度（因为屏幕更大）
+        let speedMultiplier = isiPad ? 1.3 : 1.0
+        let baseSpeed = distance * 0.025 * speedMultiplier
         
         // 添加一些随机变化
         let verticalSpeed = -baseSpeed * CGFloat.random(in: 0.95...1.05)
@@ -499,7 +510,7 @@ class FireworksViewModel: ObservableObject {
                 
                 // 检查是否到达或接近目标高度（增加容错范围）
                 let heightDifference = currentFirework.position.y - currentFirework.targetHeight
-                let isCloseToTarget = abs(heightDifference) < 30  // 30像素容错范围
+                let isCloseToTarget = abs(heightDifference) < 50  // iPad上增加容错范围
                 
                 if self.isFireworkStateEqualTo(currentFirework, .launching) {
                     if isCloseToTarget {
@@ -582,9 +593,13 @@ class FireworksViewModel: ObservableObject {
     private func createExplosionParticles(at position: CGPoint, color: Color) {
         // 创建爆炸粒子
         
+        // 调整粒子数量（iPad上更多）
+        let particleCount = isiPad ? 100 : 80
+        let starCount = isiPad ? 20 : 15
+        
         // 快速扩散的小粒子
-        for i in 0..<80 {
-            let angle = Double(i) * (360.0 / 80.0) * Double.pi / 180
+        for i in 0..<particleCount {
+            let angle = Double(i) * (360.0 / Double(particleCount)) * Double.pi / 180
             let speed = CGFloat.random(in: 10...40) / 10.0
             let velocity = CGPoint(
                 x: CGFloat(cos(angle)) * speed,
@@ -613,7 +628,7 @@ class FireworksViewModel: ObservableObject {
         }
         
         // 星星状的大粒子
-        for _ in 0..<15 {
+        for _ in 0..<starCount {
             let angle = Double.random(in: 0..<360) * Double.pi / 180
             let speed = CGFloat.random(in: 5...15) / 10.0
             let velocity = CGPoint(
@@ -673,11 +688,12 @@ class FireworksViewModel: ObservableObject {
             fireworks[i].lifeTime += 1.0/30.0
             
             if isFireworkStateEqualTo(fireworks[i], .launching) {
-                // 减少重力影响，让烟火更容易上升
-                fireworks[i].velocity.y += 0.02  // 从0.03减少到0.02
+                // 减少重力影响，让烟火更容易上升（iPad上更小）
+                let gravity = isiPad ? 0.015 : 0.02
+                fireworks[i].velocity.y += gravity
                 
                 // 减少空气阻力，让烟火保持速度
-                fireworks[i].velocity.x *= 0.999  // 从0.998增加到0.999
+                fireworks[i].velocity.x *= 0.999
                 
                 // 更新位置
                 fireworks[i].position.x += fireworks[i].velocity.x

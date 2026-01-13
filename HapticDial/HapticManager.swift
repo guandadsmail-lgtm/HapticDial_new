@@ -1,4 +1,4 @@
-// Core/HapticManager.swift - 修复版
+
 import CoreHaptics
 import AVFoundation
 import Combine
@@ -137,8 +137,9 @@ class HapticManager: NSObject, ObservableObject {
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
             try AVAudioSession.sharedInstance().setActive(true)
+            print("🎛️ HapticManager 音频会话设置成功")
         } catch {
-            print("音频设置失败: \(error)")
+            print("🎛️ 音频设置失败: \(error)")
         }
     }
     
@@ -157,35 +158,39 @@ class HapticManager: NSObject, ObservableObject {
     // MARK: - 主要触感播放方法
     
     func playClick(velocity: Double = 1.0) {
-        guard isEnabled, isEngineStarted else { return }
+        guard isEnabled else { return }
         
         let floatVelocity = Float(velocity)
         
-        switch customHapticMode {
-        case .default:
-            playDefaultHaptic(velocity: floatVelocity)
-        case .lightClick:
-            playCustomPattern(.lightClick, velocity: floatVelocity)
-        case .mediumClick:
-            playCustomPattern(.mediumClick, velocity: floatVelocity)
-        case .heavyClick:
-            playCustomPattern(.heavyClick, velocity: floatVelocity)
-        case .doubleClick:
-            playCustomPattern(.doubleClick, velocity: floatVelocity)
-        case .tripleClick:
-            playCustomPattern(.tripleClick, velocity: floatVelocity)
-        case .shortVibration:
-            playCustomPattern(.shortVibration, velocity: floatVelocity)
-        case .longVibration:
-            playCustomPattern(.longVibration, velocity: floatVelocity)
-        case .risingPulse:
-            playCustomPattern(.risingPulse, velocity: floatVelocity)
-        case .fallingPulse:
-            playCustomPattern(.fallingPulse, velocity: floatVelocity)
-        case .wobble:
-            playCustomPattern(.wobble, velocity: floatVelocity)
+        // 播放触觉反馈
+        if isEngineStarted {
+            switch customHapticMode {
+            case .default:
+                playDefaultHaptic(velocity: floatVelocity)
+            case .lightClick:
+                playCustomPattern(.lightClick, velocity: floatVelocity)
+            case .mediumClick:
+                playCustomPattern(.mediumClick, velocity: floatVelocity)
+            case .heavyClick:
+                playCustomPattern(.heavyClick, velocity: floatVelocity)
+            case .doubleClick:
+                playCustomPattern(.doubleClick, velocity: floatVelocity)
+            case .tripleClick:
+                playCustomPattern(.tripleClick, velocity: floatVelocity)
+            case .shortVibration:
+                playCustomPattern(.shortVibration, velocity: floatVelocity)
+            case .longVibration:
+                playCustomPattern(.longVibration, velocity: floatVelocity)
+            case .risingPulse:
+                playCustomPattern(.risingPulse, velocity: floatVelocity)
+            case .fallingPulse:
+                playCustomPattern(.fallingPulse, velocity: floatVelocity)
+            case .wobble:
+                playCustomPattern(.wobble, velocity: floatVelocity)
+            }
         }
         
+        // 播放音效
         playSoundForCurrentSelection()
     }
     
@@ -232,21 +237,34 @@ class HapticManager: NSObject, ObservableObject {
     private func playSoundForCurrentSelection() {
         guard volume > 0 else { return }
         
+        ensureAudioSessionActive()
+        
         if let selectedSound = unifiedSoundManager.selectedSound {
-            playUnifiedSound(selectedSound)
+            print("🎛️ HapticManager 播放音效: \(selectedSound.name)")
+            
+            // 直接调用统一的播放方法
+            unifiedSoundManager.playSound(selectedSound)
         } else {
             playFallbackSound()
+        }
+    }
+
+    private func ensureAudioSessionActive() {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("🎛️ 激活音频会话失败: \(error)")
         }
     }
     
     private func playUnifiedSound(_ soundOption: UnifiedSoundManager.SoundOption) {
         guard volume > 0 else { return }
         
-        // 直接使用统一音效管理器播放音效
-        unifiedSoundManager.playSound(soundOption)
+        print("🎛️ HapticManager 播放音效: \(soundOption.name)")
         
-        // 调整音量（如果使用AVAudioPlayer，需要在播放前设置音量）
-        // 对于SystemSoundID，音量由系统控制，我们无法直接调整
+        // 直接使用统一音效管理器测试音效
+        unifiedSoundManager.testSound(soundOption)
     }
     
     private func playFallbackSound() {
@@ -257,7 +275,16 @@ class HapticManager: NSObject, ObservableObject {
         case .aperture:
             soundID = apertureSoundID
         }
+        
+        print("🎛️ 播放备用系统音效 ID: \(soundID)")
         AudioServicesPlaySystemSound(soundID)
+        
+        // 🔴 模拟器特殊处理
+        #if targetEnvironment(simulator)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            AudioServicesPlaySystemSound(soundID)
+        }
+        #endif
     }
     
     // MARK: - 自定义触感模式

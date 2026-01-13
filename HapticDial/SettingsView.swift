@@ -27,6 +27,16 @@ struct SettingsView: View {
     @State private var showingAdvancedSettings = false
     @State private var showSoundPicker = false
     @State private var showingDeleteAlert = false
+    @State private var showingAudioDebugInfo = false
+    
+    // 检查是否在模拟器中运行
+    private var isSimulator: Bool {
+        #if targetEnvironment(simulator)
+        return true
+        #else
+        return false
+        #endif
+    }
     
     var body: some View {
         NavigationView {
@@ -304,18 +314,39 @@ struct SettingsView: View {
                         .accentColor(bubbleColor)
                         .disabled(!hapticManager.isSoundEnabled())
                         
-                        Button("Test Sound") {
-                            hapticManager.playClick()
+                        // 测试按钮
+                        HStack(spacing: 12) {
+                            Button("Test Sound") {
+                                hapticManager.playClick()
+                                
+                                // 同时测试当前选中的音效
+                                if let selectedSound = unifiedSoundManager.selectedSound {
+                                    unifiedSoundManager.testSound(selectedSound)
+                                }
+                            }
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(bubbleColor)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule()
+                                    .fill(bubbleColor.opacity(0.1))
+                            )
+                            .disabled(!hapticManager.isSoundEnabled())
+                            
+                            Button("Debug") {
+                                showingAudioDebugInfo = true
+                                unifiedSoundManager.debugPrintSoundInfo()
+                            }
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.gray)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule()
+                                    .fill(Color.gray.opacity(0.1))
+                            )
                         }
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(bubbleColor)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule()
-                                .fill(bubbleColor.opacity(0.1))
-                        )
-                        .disabled(!hapticManager.isSoundEnabled())
                         
                         // 显示音效包信息
                         if let selectedSound = unifiedSoundManager.selectedSound,
@@ -407,8 +438,25 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                 }
                 
-             
-              
+                // 调试信息
+                Section {
+                    Button("Show Audio Debug Info") {
+                        showingAudioDebugInfo = true
+                        unifiedSoundManager.debugPrintSoundInfo()
+                    }
+                    .foregroundColor(.blue)
+                    
+                    Button("Clear Audio Cache") {
+                        unifiedSoundManager.clearSoundCache()
+                    }
+                    .foregroundColor(.orange)
+                } header: {
+                    Text("Debug Tools")
+                } footer: {
+                    Text("Tools for debugging audio issues")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
             }
             .listStyle(InsetGroupedListStyle())
             .navigationTitle("Settings")
@@ -431,6 +479,15 @@ struct SettingsView: View {
                 }
             } message: {
                 Text("Are you sure you want to delete this sound pack? This action cannot be undone.")
+            }
+            .alert("Audio Debug Info", isPresented: $showingAudioDebugInfo) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                let soundName = unifiedSoundManager.getCurrentSoundName()
+                let soundEnabled = unifiedSoundManager.isSoundEnabled()
+                let deviceType = isSimulator ? "Simulator" : "Real Device"
+                
+                Text("Current Sound: \(soundName)\nSound Enabled: \(soundEnabled ? "Yes" : "No")\nRunning on: \(deviceType)")
             }
         }
     }

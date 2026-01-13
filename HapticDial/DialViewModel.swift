@@ -1,8 +1,12 @@
-// ViewModels/DialViewModel.swift - 简化版
+// ViewModels/DialViewModel.swift - 修改版本
 import Foundation
 import Combine
 import CoreGraphics
 import AVFoundation
+
+#if os(iOS)
+import UIKit
+#endif
 
 class DialViewModel: ObservableObject {
     @Published var currentAngle: Double = 0.0
@@ -10,6 +14,7 @@ class DialViewModel: ObservableObject {
     @Published var isRotating = false
     @Published var hapticEnabled = true
     @Published var soundEnabled = true
+    @Published var rotationCount: Int = 0  // 新增：公开旋转圈数
     
     private let hapticManager = HapticManager.shared
     private let physicsSimulator = PhysicsSimulator()
@@ -27,6 +32,19 @@ class DialViewModel: ObservableObject {
             .sink { [weak self] newAngle in
                 self?.currentAngle = newAngle
                 self?.handleNotchFeedback(newAngle: newAngle)
+            }
+            .store(in: &cancellables)
+        
+        // 监听总旋转角度变化，更新圈数
+        $totalRotation
+            .sink { [weak self] newTotalRotation in
+                guard let self = self else { return }
+                let newRotationCount = Int(newTotalRotation / 360)
+                if self.rotationCount != newRotationCount {
+                    self.rotationCount = newRotationCount
+                    print("🔄 旋转圈数更新: \(newRotationCount) 圈")
+                    self.checkForEffect()
+                }
             }
             .store(in: &cancellables)
     }
@@ -66,9 +84,6 @@ class DialViewModel: ObservableObject {
         
         // 累加总旋转
         totalRotation = totalRotation + abs(delta)
-        
-        // 检查是否需要触发特殊效果
-        checkForEffect()
     }
     
     func handleDragEnd() {
@@ -145,17 +160,111 @@ class DialViewModel: ObservableObject {
 
     func resetStats() {
         totalRotation = 0
+        rotationCount = 0
         lastEffectRotation = 0
     }
     
+    // MARK: - 修复：检查并触发特殊效果
+    
     private func checkForEffect() {
-        let currentRotationCount = Int(totalRotation / 360)
-        let lastRotationCount = Int(lastEffectRotation / 360)
+        let currentRotationCount = self.rotationCount
         
-        // 每当达到100圈或100圈的整数倍时触发效果
-        if currentRotationCount >= 100 && currentRotationCount % 100 == 0 && currentRotationCount > lastRotationCount {
-            lastEffectRotation = totalRotation
-            EffectManager.shared.triggerEffect()
+        print("🎯 检查效果触发: \(currentRotationCount) 圈")
+        
+        // 规则：50, 150, 250, 350 等 50 的倍数（但不包含 100, 200, 300 等 100 的倍数）出现金币雨
+        // 100, 200, 300, 400 等 100 的倍数出现当前设置的特效（烟火或裂纹）
+        
+        if currentRotationCount >= 50 {
+            // 检查是否是50的倍数但不是100的倍数（金币雨）
+            if currentRotationCount % 50 == 0 && currentRotationCount % 100 != 0 {
+                print("💰 触发\(currentRotationCount)圈金币雨特效！")
+                triggerCoinRainEffect()
+            }
+            // 检查是否是100的倍数（烟火/裂纹特效）
+            else if currentRotationCount % 100 == 0 {
+                print("🎆 触发\(currentRotationCount)圈特效！")
+                triggerCurrentEffect()
+            }
         }
+    }
+    
+    // 触发金币雨效果
+    private func triggerCoinRainEffect() {
+        #if os(iOS)
+        // iOS平台：使用UIApplication获取窗口
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first {
+            let screenSize = window.frame.size
+            
+            // 触发金币雨效果
+            print("💰 触发金币雨效果")
+            CoinManager.shared.triggerCoinRain(screenSize: screenSize)
+            
+            // 播放庆祝音效
+            hapticManager.playClick()
+        }
+        #elseif os(macOS)
+        // macOS平台：使用NSApplication或直接调用CoinManager
+        if let screenSize = NSScreen.main?.frame.size {
+            let windowSize = CGSize(width: screenSize.width, height: screenSize.height)
+            
+            // 触发金币雨效果
+            print("💰 触发金币雨效果")
+            CoinManager.shared.triggerCoinRain(screenSize: windowSize)
+            
+            // 播放庆祝音效
+            hapticManager.playClick()
+        } else {
+            // 无法获取屏幕尺寸，使用默认尺寸
+            print("⚠️ 无法获取屏幕尺寸，使用默认尺寸")
+            CoinManager.shared.triggerCoinRain(screenSize: nil)
+            hapticManager.playClick()
+        }
+        #else
+        // 其他平台（tvOS, watchOS等）
+        print("⚠️ 未知平台，使用金币雨效果")
+        CoinManager.shared.triggerCoinRain(screenSize: nil)
+        hapticManager.playClick()
+        #endif
+    }
+    
+    // 触发当前设置的效果（烟火或裂纹）
+    private func triggerCurrentEffect() {
+        #if os(iOS)
+        // iOS平台：使用UIApplication获取窗口
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first {
+            let screenSize = window.frame.size
+            
+            // 触发当前设置的特效
+            print("🎆 触发当前特效")
+            EffectManager.shared.triggerEffect(screenSize: screenSize)
+            
+            // 播放庆祝音效
+            hapticManager.playClick()
+        }
+        #elseif os(macOS)
+        // macOS平台：使用NSApplication或直接调用EffectManager
+        if let screenSize = NSScreen.main?.frame.size {
+            let windowSize = CGSize(width: screenSize.width, height: screenSize.height)
+            
+            // 触发当前设置的特效
+            print("🎆 触发当前特效")
+            EffectManager.shared.triggerEffect(screenSize: windowSize)
+            
+            // 播放庆祝音效
+            hapticManager.playClick()
+        } else {
+            // 无法获取屏幕尺寸，使用默认尺寸
+            print("⚠️ 无法获取屏幕尺寸，使用默认尺寸")
+            EffectManager.shared.triggerEffect(screenSize: nil)
+            hapticManager.playClick()
+        }
+        #else
+        // 其他平台（tvOS, watchOS等）
+        print("⚠️ 未知平台，使用当前特效")
+        EffectManager.shared.triggerEffect(screenSize: nil)
+        hapticManager.playClick()
+        #endif
     }
 }

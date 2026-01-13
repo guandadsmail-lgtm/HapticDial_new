@@ -1,4 +1,4 @@
-// ViewModels/BubbleDialViewModel.swift
+
 import SwiftUI
 import Combine
 import AVFoundation
@@ -84,8 +84,11 @@ class BubbleDialViewModel: ObservableObject {
     private func triggerSpecialEffect() {
         print("🎇 Bubble 达到100的倍数 (\(tapCount))，触发特殊效果")
         
-        // 随机选择效果：烟火或玻璃破裂
-        let effectType = Bool.random() ? "fireworks" : "crack"
+        // ✅ 修正：使用EffectManager中的当前设置效果模式
+        let effectManager = EffectManager.shared
+        let effectType = effectManager.currentEffectMode
+        
+        print("🎇 当前设置的效果模式: \(effectType)")
         
         NotificationCenter.default.post(
             name: NSNotification.Name("TriggerSpecialEffect"),

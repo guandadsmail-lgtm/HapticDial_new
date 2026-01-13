@@ -14,8 +14,6 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showSoundOptions = false
     @State private var triggerCoinRain = false
-    @State private var triggerSpecialEffect = false
-    @State private var specialEffectType = "fireworks"
     
     var body: some View {
         GeometryReader { geometry in
@@ -273,15 +271,23 @@ struct ContentView: View {
                     coinManager.triggerCoinRain(screenSize: geometry.size)
                 }
             }
-            .onChange(of: triggerSpecialEffect) { oldValue, newValue in
-                if newValue {
-                    triggerSpecialEffect = false
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TriggerCoinRain"))) { notification in
+                if let userInfo = notification.userInfo,
+                   let type = userInfo["type"] as? String,
+                   let count = userInfo["count"] as? Int {
+                    print("🎯 收到金币雨通知: \(type) 达到 \(count)")
+                    triggerCoinRain = true
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TriggerSpecialEffect"))) { notification in
+                if let userInfo = notification.userInfo,
+                   let type = userInfo["type"] as? String,
+                   let effect = userInfo["effect"] as? String,
+                   let count = userInfo["count"] as? Int {
+                    print("🎇 收到特殊效果通知: \(type) 达到 \(count)，效果: \(effect)")
                     
-                    if specialEffectType == "fireworks" {
-                        fireworksManager.triggerFireworks()
-                    } else {
-                        crackManager.triggerCrack(screenSize: geometry.size)
-                    }
+                    // ✅ 修正：直接使用EffectManager触发效果
+                    effectManager.triggerEffect(screenSize: geometry.size)
                 }
             }
         }
@@ -301,24 +307,6 @@ struct ContentView: View {
                     .navigationBarItems(trailing: Button("Done") {
                         showSoundOptions = false
                     })
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TriggerCoinRain"))) { notification in
-            if let userInfo = notification.userInfo,
-               let type = userInfo["type"] as? String,
-               let count = userInfo["count"] as? Int {
-                print("🎯 收到金币雨通知: \(type) 达到 \(count)")
-                triggerCoinRain = true
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TriggerSpecialEffect"))) { notification in
-            if let userInfo = notification.userInfo,
-               let type = userInfo["type"] as? String,
-               let effect = userInfo["effect"] as? String,
-               let count = userInfo["count"] as? Int {
-                print("🎇 收到特殊效果通知: \(type) 达到 \(count)，效果: \(effect)")
-                specialEffectType = effect
-                triggerSpecialEffect = true
             }
         }
     }

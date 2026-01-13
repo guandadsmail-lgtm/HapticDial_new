@@ -10,13 +10,24 @@ class FireworksManager: ObservableObject {
     private init() {}
     
     func triggerFireworks() {
-        guard !showFireworks else { return }
+        print("🎇 ======== 触发烟火效果 ========")
         
-        showFireworks = true
+        // 先停止任何可能正在运行的效果
+        if showFireworks {
+            print("🎇 烟火效果已经在运行，先停止")
+            showFireworks = false
+        }
         
-        // 8秒后自动隐藏（烟火持续5秒+3秒淡出）
-        DispatchQueue.main.asyncAfter(deadline: .now() + 30.0) {
-            self.showFireworks = false
+        // 重置状态
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            print("🎇 开始显示烟火")
+            self.showFireworks = true
+            
+            // 30秒后自动隐藏
+            DispatchQueue.main.asyncAfter(deadline: .now() + 30.0) {
+                print("🎇 30秒时间到，隐藏烟火")
+                self.showFireworks = false
+            }
         }
     }
 }

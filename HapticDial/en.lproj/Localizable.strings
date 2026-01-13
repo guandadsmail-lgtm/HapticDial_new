@@ -1,0 +1,107 @@
+/* BubbleDialView */
+"BUBBLE_DIAL_LABEL" = "BUBBLE";
+
+/* GearDialView */
+"GEAR_DIAL_LABEL" = "GEAR";
+
+/* ContentView */
+"APP_TITLE" = "HAPTIC DIAL";
+"ROTATION_ANGLE_TITLE" = "ROTATION ANGLE";
+"MINI_DIALS_TITLE" = "MINI DIALS";
+
+/* DialView */
+"ANGLE_LABEL" = "ANGLE";
+
+/* SettingsView - Main */
+"SETTINGS_TITLE" = "Settings";
+"DONE_BUTTON" = "Done";
+
+/* SettingsView - Sections */
+"SPECIAL_EFFECTS_SECTION" = "Special Effects";
+"FEEDBACK_SETTINGS_SECTION" = "Feedback Settings";
+"SMART_EFFECTS_SECTION" = "Smart Effects";
+"STATISTICS_SECTION" = "Statistics";
+
+/* SettingsView - Effects */
+"FIREWORKS_EFFECT_LABEL" = "Fireworks";
+"GLASS_CRACK_EFFECT_LABEL" = "Glass Crack";
+"TEST_EFFECT_BUTTON" = "Test Effect";
+"SPECIAL_EFFECTS_FOOTER" = "Choose what happens when you reach 100 taps or 100 rotations";
+
+/* SettingsView - Toggles and Labels */
+"HAPTIC_FEEDBACK_TOGGLE" = "Haptic Feedback";
+"HAPTIC_INTENSITY_LABEL" = "Haptic Intensity";
+"HAPTIC_PATTERN_LABEL" = "Haptic Pattern";
+"TEST_BUTTON" = "Test";
+
+/* SettingsView - Sound */
+"SOUND_LABEL" = "Sound";
+"CHANGE_SOUND_BUTTON" = "Change Sound";
+"SOUND_ENABLED_LABEL" = "Sound enabled";
+"SOUND_DISABLED_LABEL" = "Sound disabled";
+"VOLUME_LABEL" = "Volume";
+"TEST_SOUND_BUTTON" = "Test Sound";
+"FEEDBACK_SETTINGS_FOOTER" = "Customize haptic patterns and sounds for a personalized experience";
+
+/* SettingsView - Smart Effects */
+"SMART_ADAPTIVE_EFFECTS_TOGGLE" = "Smart Adaptive Effects";
+"TIME_BASED_EFFECTS_TOGGLE" = "Time-based Effects";
+"MOTION_BASED_EFFECTS_TOGGLE" = "Motion-based Effects";
+"SMART_EFFECTS_DESCRIPTION" = "Effects adjust based on time of day and device motion";
+"SMART_EFFECTS_FOOTER" = "Adaptive effects change based on your usage patterns and environment";
+
+/* SettingsView - Statistics */
+"MAIN_DIAL_LABEL" = "Main Dial";
+"BUBBLE_DIAL_LABEL" = "Bubble Dial";
+"GEAR_DIAL_LABEL" = "Gear Dial";
+"RESET_STATISTICS_BUTTON" = "Reset All Statistics";
+"STATISTICS_FOOTER" = "Tap counts and rotation statistics";
+
+/* Alerts */
+"DELETE_SOUND_PACK_ALERT_TITLE" = "Delete Sound Pack?";
+"DELETE_SOUND_PACK_ALERT_MESSAGE" = "Are you sure you want to delete this sound pack? This action cannot be undone.";
+"CANCEL_BUTTON" = "Cancel";
+"DELETE_BUTTON" = "Delete";
+"ABOUT_ALERT_TITLE" = "HapticDial v1.0.0";
+"ABOUT_ALERT_MESSAGE" = "A tactile feedback dial app with customizable haptics and sounds.\n\nCreated with ❤️ by HapticDial Team";
+"OK_BUTTON" = "OK";
+/* SoundSelectionView */
+"SYSTEM_SOUNDS_SECTION" = "System Sounds";
+"BUILTIN_SOUNDS_SECTION" = "Built-in Sounds";
+"CUSTOM_SOUNDS_SECTION" = "Custom Sounds";
+"NO_CUSTOM_SOUNDS_TITLE" = "No Custom Sounds";
+"NO_CUSTOM_SOUNDS_DESCRIPTION" = "Tap the button below to upload your sound files";
+"UPLOAD_CUSTOM_SOUND_BUTTON" = "Upload Custom Sound";
+"UPLOAD_CUSTOM_SOUND_DESCRIPTION" = "Supports .caf, .wav, .mp3, .m4a, .aiff files, up to 5MB";
+"SELECT_SOUND_TITLE" = "Select Sound";
+"DELETE_SOUND_ALERT_TITLE" = "Delete Sound";
+"DELETE_SOUND_ALERT_MESSAGE" = "Are you sure you want to delete this custom sound?";
+"IMPORT_FAILED_ALERT_TITLE" = "Import Failed";
+"CONFIRM_DELETE_ALERT_TITLE" = "Confirm Delete";
+"CONFIRM_DELETE_ALERT_MESSAGE" = "Are you sure you want to delete this custom sound?";
+
+/* Sound Types */
+"SOUND_TYPE_SYSTEM" = "System";
+"SOUND_TYPE_BUILTIN" = "Built-in";
+"SOUND_TYPE_CUSTOM" = "Custom";
+"SOUND_TYPE_MUTE" = "Mute";
+"SOUND_TYPE_SYSTEM_DESCRIPTION" = "System Sound";
+"SOUND_TYPE_BUILTIN_DESCRIPTION" = "Built-in Sound";
+"SOUND_TYPE_CUSTOM_DESCRIPTION" = "Custom Sound";
+"SOUND_TYPE_MUTE_DESCRIPTION" = "Mute";
+
+/* UnifiedSoundPickerView */
+"SEARCH_SOUNDS_PLACEHOLDER" = "Search sounds...";
+"SOUND_SELECTION_TITLE" = "Sound Selection";
+"NO_SOUNDS_AVAILABLE" = "No sounds available";
+"NO_SOUNDS_FOUND" = "No sounds found";
+"TRY_DIFFERENT_SEARCH_TERM" = "Try a different search term";
+"APPLY_BUTTON" = "Apply";
+
+/* Common */
+"UNKNOWN_ERROR" = "Unknown error";
+/* HorizontalSoundPicker */
+"SOUND_SELECTION_TITLE" = "SOUND SELECTION";
+
+"EFFECT_NAME_GLASS_CRACK" = "Glass Crack";
+"EFFECT_NAME_FIREWORKS" = "Fireworks";

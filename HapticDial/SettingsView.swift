@@ -1,3 +1,4 @@
+
 // Views/SettingsView.swift
 import SwiftUI
 import Combine
@@ -34,7 +35,7 @@ struct SettingsView: View {
                 // 特殊效果设置
                 Section {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("SPECIAL EFFECT")
+                        Text("SPECIAL_EFFECTS_SECTION".localized)
                             .font(.system(size: 13, weight: .medium, design: .rounded))
                             .foregroundColor(.white.opacity(0.7))
                             .tracking(1)
@@ -64,7 +65,7 @@ struct SettingsView: View {
                                                            .white.opacity(0.5))
                                     }
                                     
-                                    Text("Fireworks")
+                                    Text("FIREWORKS_EFFECT_LABEL".localized)
                                         .font(.system(size: 13, weight: .medium, design: .rounded))
                                         .foregroundColor(effectManager.currentEffectMode == "fireworks" ?
                                                        fireworksColor :
@@ -104,7 +105,7 @@ struct SettingsView: View {
                                                            .white.opacity(0.5))
                                     }
                                     
-                                    Text("Glass Crack")
+                                    Text("GLASS_CRACK_EFFECT_LABEL".localized)
                                         .font(.system(size: 13, weight: .medium, design: .rounded))
                                         .foregroundColor(effectManager.currentEffectMode == "crack" ?
                                                        crackColor :
@@ -144,7 +145,7 @@ struct SettingsView: View {
                             HStack {
                                 Image(systemName: "play.fill")
                                     .font(.system(size: 14))
-                                Text("Test Effect")
+                                Text("TEST_EFFECT_BUTTON".localized)
                                     .font(.system(size: 15, weight: .medium))
                             }
                             .foregroundColor(effectManager.currentEffectMode == "fireworks" ?
@@ -163,16 +164,16 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 8)
                 } header: {
-                    Text("Special Effects")
+                    Text("SPECIAL_EFFECTS_SECTION".localized)
                 } footer: {
-                    Text("Choose what happens when you reach 100 taps or 100 rotations")
+                    Text("SPECIAL_EFFECTS_FOOTER".localized)
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                 }
                 
                 // 触感反馈设置
                 Section {
-                    Toggle("Haptic Feedback", isOn: $viewModel.hapticEnabled)
+                    Toggle("HAPTIC_FEEDBACK_TOGGLE".localized, isOn: $viewModel.hapticEnabled)
                         .toggleStyle(SwitchToggleStyle(tint: orangePinkColor))
                     
                     if viewModel.hapticEnabled {
@@ -183,7 +184,7 @@ struct SettingsView: View {
                                     .foregroundColor(orangePinkColor.opacity(0.8))
                                     .frame(width: 24)
                                 
-                                Text("Haptic Intensity")
+                                Text("HAPTIC_INTENSITY_LABEL".localized)
                                     .font(.system(size: 15))
                                 
                                 Spacer()
@@ -197,7 +198,7 @@ struct SettingsView: View {
                                 get: { hapticManager.hapticIntensity },
                                 set: { hapticManager.setHapticIntensity($0) }
                             ), in: 0.1...1.0, step: 0.1) {
-                                Text("Haptic Intensity")
+                                Text("HAPTIC_INTENSITY_LABEL".localized)
                             }
                             .accentColor(orangePinkColor)
                             
@@ -208,12 +209,12 @@ struct SettingsView: View {
                                         .foregroundColor(orangePinkColor.opacity(0.8))
                                         .frame(width: 24)
                                     
-                                    Text("Haptic Pattern")
+                                    Text("HAPTIC_PATTERN_LABEL".localized)
                                         .font(.system(size: 15))
                                     
                                     Spacer()
                                     
-                                    Button("Test") {
+                                    Button("TEST_BUTTON".localized) {
                                         hapticManager.testHapticMode(hapticManager.customHapticMode)
                                     }
                                     .font(.system(size: 13, weight: .medium))
@@ -226,12 +227,12 @@ struct SettingsView: View {
                                     )
                                 }
                                 
-                                Picker("Haptic Pattern", selection: Binding(
+                                Picker("HAPTIC_PATTERN_LABEL".localized, selection: Binding(
                                     get: { hapticManager.customHapticMode },
                                     set: { hapticManager.setCustomHapticMode($0) }
                                 )) {
                                     ForEach(HapticManager.CustomHapticMode.allCases, id: \.self) { mode in
-                                        Text(mode.rawValue).tag(mode)
+                                        Text(mode.rawValue.localized).tag(mode)
                                     }
                                 }
                                 .pickerStyle(.menu)
@@ -257,12 +258,12 @@ struct SettingsView: View {
                                 .foregroundColor(bubbleColor.opacity(0.8))
                                 .frame(width: 24)
                             
-                            Text("Sound")
+                            Text("SOUND_LABEL".localized)
                                 .font(.system(size: 15))
                             
                             Spacer()
                             
-                            Button("Change Sound") {
+                            Button("CHANGE_SOUND_BUTTON".localized) {
                                 showSoundPicker = true
                             }
                             .font(.system(size: 13, weight: .medium))
@@ -281,7 +282,7 @@ struct SettingsView: View {
                                 Text(unifiedSoundManager.getCurrentSoundName())
                                     .font(.system(size: 14, weight: .medium))
                                 
-                                Text(unifiedSoundManager.isSoundEnabled() ? "Sound enabled" : "Sound disabled")
+                                Text(unifiedSoundManager.isSoundEnabled() ? "SOUND_ENABLED_LABEL".localized : "SOUND_DISABLED_LABEL".localized)
                                     .font(.system(size: 12))
                                     .foregroundColor(.secondary)
                             }
@@ -299,12 +300,12 @@ struct SettingsView: View {
                             get: { hapticManager.volume },
                             set: { hapticManager.setVolume($0) }
                         ), in: 0...1, step: 0.1) {
-                            Text("Volume")
+                            Text("VOLUME_LABEL".localized)
                         }
                         .accentColor(bubbleColor)
                         .disabled(!hapticManager.isSoundEnabled())
                         
-                        Button("Test Sound") {
+                        Button("TEST_SOUND_BUTTON".localized) {
                             hapticManager.playClick()
                         }
                         .font(.system(size: 13, weight: .medium))
@@ -335,27 +336,27 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 8)
                 } header: {
-                    Text("Feedback Settings")
+                    Text("FEEDBACK_SETTINGS_SECTION".localized)
                 } footer: {
-                    Text("Customize haptic patterns and sounds for a personalized experience")
+                    Text("FEEDBACK_SETTINGS_FOOTER".localized)
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                 }
                 
                 // 智能效果设置
                 Section {
-                    Toggle("Smart Adaptive Effects", isOn: $smartEffectsManager.isAdaptiveEnabled)
+                    Toggle("SMART_ADAPTIVE_EFFECTS_TOGGLE".localized, isOn: $smartEffectsManager.isAdaptiveEnabled)
                         .toggleStyle(SwitchToggleStyle(tint: customGreen))
                     
                     if smartEffectsManager.isAdaptiveEnabled {
                         VStack(alignment: .leading, spacing: 12) {
-                            Toggle("Time-based Effects", isOn: $smartEffectsManager.timeBasedEffects)
+                            Toggle("TIME_BASED_EFFECTS_TOGGLE".localized, isOn: $smartEffectsManager.timeBasedEffects)
                                 .toggleStyle(SwitchToggleStyle(tint: customGreen.opacity(0.8)))
                             
-                            Toggle("Motion-based Effects", isOn: $smartEffectsManager.motionBasedEffects)
+                            Toggle("MOTION_BASED_EFFECTS_TOGGLE".localized, isOn: $smartEffectsManager.motionBasedEffects)
                                 .toggleStyle(SwitchToggleStyle(tint: customGreen.opacity(0.8)))
                             
-                            Text("Effects adjust based on time of day and device motion")
+                            Text("SMART_EFFECTS_DESCRIPTION".localized)
                                 .font(.system(size: 12))
                                 .foregroundColor(.secondary)
                                 .padding(.top, 4)
@@ -363,9 +364,9 @@ struct SettingsView: View {
                         .padding(.vertical, 4)
                     }
                 } header: {
-                    Text("Smart Effects")
+                    Text("SMART_EFFECTS_SECTION".localized)
                 } footer: {
-                    Text("Adaptive effects change based on your usage patterns and environment")
+                    Text("SMART_EFFECTS_FOOTER".localized)
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                 }
@@ -373,49 +374,46 @@ struct SettingsView: View {
                 // 统计信息
                 Section {
                     HStack {
-                        Text("Main Dial")
+                        Text("MAIN_DIAL_LABEL".localized)
                         Spacer()
                         Text("\(Int(viewModel.totalRotation / 360)) rotations")
                             .foregroundColor(.secondary)
                     }
                     
                     HStack {
-                        Text("Bubble Dial")
+                        Text("BUBBLE_DIAL_LABEL".localized)
                         Spacer()
                         Text("\(bubbleViewModel.tapCount) taps")
                             .foregroundColor(bubbleColor)
                     }
                     
                     HStack {
-                        Text("Gear Dial")
+                        Text("GEAR_DIAL_LABEL".localized)
                         Spacer()
                         Text("\(gearViewModel.spinCount) spins")
                             .foregroundColor(gearColor)
                     }
                     
-                    Button("Reset All Statistics") {
+                    Button("RESET_STATISTICS_BUTTON".localized) {
                         viewModel.resetStats()
                         bubbleViewModel.resetCount()
                         gearViewModel.resetCount()
                     }
                     .foregroundColor(.red)
                 } header: {
-                    Text("Statistics")
+                    Text("STATISTICS_SECTION".localized)
                 } footer: {
-                    Text("Tap counts and rotation statistics")
+                    Text("STATISTICS_FOOTER".localized)
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
                 }
-                
-             
-              
             }
             .listStyle(InsetGroupedListStyle())
-            .navigationTitle("Settings")
+            .navigationTitle("SETTINGS_TITLE".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
+                    Button("DONE_BUTTON".localized) {
                         dismiss()
                     }
                 }
@@ -424,13 +422,13 @@ struct SettingsView: View {
             .sheet(isPresented: $showSoundPicker) {
                 UnifiedSoundPickerView()
             }
-            .alert("Delete Sound Pack?", isPresented: $showingDeleteAlert) {
-                Button("Cancel", role: .cancel) { }
-                Button("Delete", role: .destructive) {
+            .alert("DELETE_SOUND_PACK_ALERT_TITLE".localized, isPresented: $showingDeleteAlert) {
+                Button("CANCEL_BUTTON".localized, role: .cancel) { }
+                Button("DELETE_BUTTON".localized, role: .destructive) {
                     // 处理删除逻辑
                 }
             } message: {
-                Text("Are you sure you want to delete this sound pack? This action cannot be undone.")
+                Text("DELETE_SOUND_PACK_ALERT_MESSAGE".localized)
             }
         }
     }
@@ -438,12 +436,12 @@ struct SettingsView: View {
     private func showAboutInfo() {
         // 创建简单的关于弹窗
         let alert = UIAlertController(
-            title: "HapticDial v1.0.0",
-            message: "A tactile feedback dial app with customizable haptics and sounds.\n\nCreated with ❤️ by HapticDial Team",
+            title: "ABOUT_ALERT_TITLE".localized,
+            message: "ABOUT_ALERT_MESSAGE".localized,
             preferredStyle: .alert
         )
         
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        alert.addAction(UIAlertAction(title: "OK_BUTTON".localized, style: .default))
         
         // 获取当前视图控制器
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,

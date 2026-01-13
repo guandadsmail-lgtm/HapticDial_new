@@ -75,7 +75,7 @@ struct GearDialView: View {
                 .zIndex(1)
             
             // 9. 🔴 添加 GEAR 标签 - 放在转盘下方，距离合适
-            Text("GEAR")
+            Text("GEAR_DIAL_LABEL".localized)
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundColor(.white.opacity(0.7))
                 .offset(y: size * 0.63) // 🔴 调整到转盘下方合适距离

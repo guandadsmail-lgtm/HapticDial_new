@@ -29,6 +29,9 @@ struct ContentView: View {
             // 计算转盘的缩放比例
             let scaleFactor: CGFloat = isSmallScreen ? 0.85 : 1.0
             
+            // 获取效果名称（避免在 String(format:) 中直接使用 @StateObject 属性）
+            let effectName = effectManager.currentEffectName
+            
             ZStack {
                 // 深度渐变背景
                 LinearGradient(
@@ -50,7 +53,7 @@ struct ContentView: View {
                             Image(systemName: effectManager.currentEffectIcon)
                                 .font(.system(size: 14))
                                 .foregroundColor(.white)
-                            Text("Effect Mode: \(effectManager.currentEffectName)")
+                            Text("EFFECT_FORMAT".localized(with: effectName))
                                 .font(.system(size: 14, weight: .medium, design: .rounded))
                                 .foregroundColor(.white)
                         }
@@ -91,7 +94,7 @@ struct ContentView: View {
                         // 中间：主转盘 + 缩小的音效选择器
                         VStack(spacing: 0) {
                             // 标题
-                            Text("HAPTIC DIAL")
+                            Text("APP_TITLE".localized)
                                 .font(.system(size: isSmallScreen ? 12 : 14, weight: .medium, design: .rounded))
                                 .foregroundColor(.white.opacity(0.6))
                                 .tracking(2)
@@ -141,7 +144,7 @@ struct ContentView: View {
                     // 竖屏布局：上-主转盘，中-两个小转盘，下-音效选择器
                     VStack(spacing: 0) {
                         // 标题
-                        Text("HAPTIC DIAL")
+                        Text("APP_TITLE".localized)
                             .font(.system(size: 14, weight: .medium, design: .rounded))
                             .foregroundColor(.white.opacity(0.6))
                             .tracking(2)
@@ -155,7 +158,7 @@ struct ContentView: View {
                                                Color(red: 1.0, green: 0.6, blue: 0.2) :
                                                Color(red: 0.2, green: 0.8, blue: 1.0))
                             
-                            Text("Effect: \(effectManager.currentEffectName)")
+                            Text(String(format: "EFFECT_FORMAT".localized, effectName))
                                 .font(.system(size: 12, weight: .medium, design: .rounded))
                                 .foregroundColor(.white.opacity(0.7))
                         }
@@ -164,7 +167,7 @@ struct ContentView: View {
                         Spacer(minLength: isSmallScreen ? 15 : 20)
                         
                         // 角度显示标题
-                        Text("ROTATION ANGLE")
+                        Text("ROTATION_ANGLE_TITLE".localized)
                             .font(.system(size: 16, weight: .medium, design: .rounded))
                             .foregroundColor(.white.opacity(0.8))
                             .padding(.bottom, isSmallScreen ? 15 : 20)
@@ -178,7 +181,7 @@ struct ContentView: View {
                         
                         // 中：两个小转盘（水平排列）
                         VStack(spacing: 12) {
-                            Text("MINI DIALS")
+                            Text("MINI_DIALS_TITLE".localized)
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundColor(.white.opacity(0.7))
                                 .tracking(1)
@@ -297,8 +300,8 @@ struct ContentView: View {
         .sheet(isPresented: $showSoundOptions) {
             NavigationView {
                 SoundSelectionView()
-                    .navigationBarTitle("Select Sound", displayMode: .inline)
-                    .navigationBarItems(trailing: Button("Done") {
+                    .navigationBarTitle("SELECT_SOUND_TITLE".localized, displayMode: .inline)
+                    .navigationBarItems(trailing: Button("DONE_BUTTON".localized) {
                         showSoundOptions = false
                     })
             }

@@ -137,7 +137,7 @@ struct DialView: View {
                         .font(.system(size: 24, weight: .semibold, design: .rounded))
                         .foregroundColor(.white)
                     
-                    Text("ANGLE")
+                    Text("ANGLE_LABEL".localized)
                         .font(.system(size: 10, weight: .medium, design: .rounded))
                         .foregroundColor(.white.opacity(0.6))
                         .tracking(1)

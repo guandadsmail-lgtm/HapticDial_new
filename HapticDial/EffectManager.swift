@@ -76,25 +76,39 @@ class EffectManager: ObservableObject {
         setEffectMode(newMode)
     }
     
+    // 添加回 currentEffectName 属性，返回本地化后的字符串
     var currentEffectName: String {
         switch currentEffectMode {
         case "crack":
-            return "Glass Crack"
+            return "EFFECT_NAME_GLASS_CRACK".localized
         case "fireworks":
-            return "Fireworks"
+            return "EFFECT_NAME_FIREWORKS".localized
         default:
-            return "Fireworks"
+            return "EFFECT_NAME_FIREWORKS".localized
         }
     }
     
+    // 保留 localizedEffectName 用于其他场景
+    var localizedEffectName: LocalizedStringKey {
+        switch currentEffectMode {
+        case "crack":
+            return "EFFECT_NAME_GLASS_CRACK"
+        case "fireworks":
+            return "EFFECT_NAME_FIREWORKS"
+        default:
+            return "EFFECT_NAME_FIREWORKS"
+        }
+    }
+    
+    // 同样需要本地化描述
     var currentEffectDescription: String {
         switch currentEffectMode {
         case "crack":
-            return "Trigger full-screen glass crack effect when reaching 100 times"
+            return NSLocalizedString("EFFECT_DESC_GLASS_CRACK", comment: "达到100次时触发全屏玻璃破裂效果")
         case "fireworks":
-            return "Trigger fireworks effect when reaching 100 times"
+            return NSLocalizedString("EFFECT_DESC_FIREWORKS", comment: "达到100次时触发烟火效果")
         default:
-            return "Trigger fireworks effect when reaching 100 times"
+            return NSLocalizedString("EFFECT_DESC_FIREWORKS", comment: "达到100次时触发烟火效果")
         }
     }
     

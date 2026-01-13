@@ -186,7 +186,7 @@ struct BubbleDialView: View {
         }
         .overlay(
             // 🔴 添加 BUBBLE 标签 - 放在转盘外部下方，使用固定偏移
-            Text("BUBBLE")
+            Text("BUBBLE_DIAL_LABEL".localized)  // 推荐这种方式
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundColor(.white.opacity(0.7))
                 .offset(y: size / 2 + 20) // 🔴 放在转盘底部边缘下方20点

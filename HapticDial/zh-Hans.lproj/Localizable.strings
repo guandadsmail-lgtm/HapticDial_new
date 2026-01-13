@@ -1,0 +1,107 @@
+/* BubbleDialView */
+"BUBBLE_DIAL_LABEL" = "气泡";
+
+/* GearDialView */
+"GEAR_DIAL_LABEL" = "齿轮";
+
+/* ContentView */
+"APP_TITLE" = "指尖解压";
+"ROTATION_ANGLE_TITLE" = "旋转角度";
+"MINI_DIALS_TITLE" = "迷你转盘";
+
+/* DialView */
+"ANGLE_LABEL" = "角度";
+
+/* SettingsView - Main */
+"SETTINGS_TITLE" = "设置";
+"DONE_BUTTON" = "完成";
+
+/* SettingsView - Sections */
+"SPECIAL_EFFECTS_SECTION" = "特殊效果";
+"FEEDBACK_SETTINGS_SECTION" = "反馈设置";
+"SMART_EFFECTS_SECTION" = "智能效果";
+"STATISTICS_SECTION" = "统计信息";
+
+/* SettingsView - Effects */
+"FIREWORKS_EFFECT_LABEL" = "烟火效果";
+"GLASS_CRACK_EFFECT_LABEL" = "玻璃破裂";
+"TEST_EFFECT_BUTTON" = "测试效果";
+"SPECIAL_EFFECTS_FOOTER" = "选择当达到100次点击或100次旋转时触发的效果";
+
+/* SettingsView - Toggles and Labels */
+"HAPTIC_FEEDBACK_TOGGLE" = "触感反馈";
+"HAPTIC_INTENSITY_LABEL" = "触感强度";
+"HAPTIC_PATTERN_LABEL" = "触感模式";
+"TEST_BUTTON" = "测试";
+
+/* SettingsView - Sound */
+"SOUND_LABEL" = "声音";
+"CHANGE_SOUND_BUTTON" = "更改声音";
+"SOUND_ENABLED_LABEL" = "音效已启用";
+"SOUND_DISABLED_LABEL" = "音效已禁用";
+"VOLUME_LABEL" = "音量";
+"TEST_SOUND_BUTTON" = "测试音效";
+"FEEDBACK_SETTINGS_FOOTER" = "自定义触感模式和音效，获得个性化体验";
+
+/* SettingsView - Smart Effects */
+"SMART_ADAPTIVE_EFFECTS_TOGGLE" = "智能自适应效果";
+"TIME_BASED_EFFECTS_TOGGLE" = "基于时间的效果";
+"MOTION_BASED_EFFECTS_TOGGLE" = "基于运动的效果";
+"SMART_EFFECTS_DESCRIPTION" = "效果会根据一天中的时间和设备运动进行调整";
+"SMART_EFFECTS_FOOTER" = "自适应效果会根据您的使用模式和环境变化";
+
+/* SettingsView - Statistics */
+"MAIN_DIAL_LABEL" = "主转盘";
+"BUBBLE_DIAL_LABEL" = "气泡";
+"GEAR_DIAL_LABEL" = "齿轮";
+"RESET_STATISTICS_BUTTON" = "重置所有统计";
+"STATISTICS_FOOTER" = "点击次数和旋转统计";
+
+/* Alerts */
+"DELETE_SOUND_PACK_ALERT_TITLE" = "删除音效包？";
+"DELETE_SOUND_PACK_ALERT_MESSAGE" = "您确定要删除此音效包吗？此操作无法撤销。";
+"CANCEL_BUTTON" = "取消";
+"DELETE_BUTTON" = "删除";
+"ABOUT_ALERT_TITLE" = "HapticDial v1.0.0";
+"ABOUT_ALERT_MESSAGE" = "一个具有可定制触觉和声音的触觉反馈转盘应用。\n\n由 HapticDial 团队用心创建。";
+"OK_BUTTON" = "确定";
+/* SoundSelectionView */
+"SYSTEM_SOUNDS_SECTION" = "系统音效";
+"BUILTIN_SOUNDS_SECTION" = "内置音效";
+"CUSTOM_SOUNDS_SECTION" = "自定义音效";
+"NO_CUSTOM_SOUNDS_TITLE" = "无自定义音效";
+"NO_CUSTOM_SOUNDS_DESCRIPTION" = "点击下方按钮上传您的音效文件";
+"UPLOAD_CUSTOM_SOUND_BUTTON" = "上传自定义音效";
+"UPLOAD_CUSTOM_SOUND_DESCRIPTION" = "支持 .caf、.wav、.mp3、.m4a、.aiff 文件，最大 5MB";
+"SELECT_SOUND_TITLE" = "选择音效";
+"DELETE_SOUND_ALERT_TITLE" = "删除音效";
+"DELETE_SOUND_ALERT_MESSAGE" = "您确定要删除此自定义音效吗？";
+"IMPORT_FAILED_ALERT_TITLE" = "导入失败";
+"CONFIRM_DELETE_ALERT_TITLE" = "确认删除";
+"CONFIRM_DELETE_ALERT_MESSAGE" = "您确定要删除此自定义音效吗？";
+
+/* Sound Types */
+"SOUND_TYPE_SYSTEM" = "系统";
+"SOUND_TYPE_BUILTIN" = "内置";
+"SOUND_TYPE_CUSTOM" = "自定义";
+"SOUND_TYPE_MUTE" = "静音";
+"SOUND_TYPE_SYSTEM_DESCRIPTION" = "系统音效";
+"SOUND_TYPE_BUILTIN_DESCRIPTION" = "内置音效";
+"SOUND_TYPE_CUSTOM_DESCRIPTION" = "自定义音效";
+"SOUND_TYPE_MUTE_DESCRIPTION" = "静音";
+
+/* UnifiedSoundPickerView */
+"SEARCH_SOUNDS_PLACEHOLDER" = "搜索音效...";
+"SOUND_SELECTION_TITLE" = "音效选择";
+"NO_SOUNDS_AVAILABLE" = "无可用音效";
+"NO_SOUNDS_FOUND" = "未找到音效";
+"TRY_DIFFERENT_SEARCH_TERM" = "尝试不同的搜索词";
+"APPLY_BUTTON" = "应用";
+
+/* Common */
+"UNKNOWN_ERROR" = "未知错误";
+/* HorizontalSoundPicker */
+"SOUND_SELECTION_TITLE" = "音效选听器";
+
+"EFFECT_NAME_GLASS_CRACK" = "玻璃破裂";
+"EFFECT_NAME_FIREWORKS" = "烟火";

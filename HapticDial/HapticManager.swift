@@ -244,9 +244,6 @@ class HapticManager: NSObject, ObservableObject {
         
         // 直接使用统一音效管理器播放音效
         unifiedSoundManager.playSound(soundOption)
-        
-        // 调整音量（如果使用AVAudioPlayer，需要在播放前设置音量）
-        // 对于SystemSoundID，音量由系统控制，我们无法直接调整
     }
     
     private func playFallbackSound() {
@@ -526,15 +523,6 @@ class HapticManager: NSObject, ObservableObject {
         generator.impactOccurred(intensity: 0.5)
     }
     
-    // MARK: - 修复第586行附近的 try-catch 块
-    // 原来的代码可能有这样的问题：
-    // do {
-    //     // 这里没有调用任何可能抛出错误的函数
-    // } catch {
-    //     print("Error")
-    // }
-    
-    // 修复为：
     func someSafeOperation() {
         // 直接执行操作，不使用 try-catch，因为没有抛出错误
         print("执行安全操作")
@@ -545,6 +533,7 @@ class HapticManager: NSObject, ObservableObject {
     func cleanup() {
         // 停止并清理触觉引擎
         if let engine = engine {
+            // 移除不必要的 try-catch，因为 engine.stop() 可能会抛出错误，我们应该处理它
             do {
                 try engine.stop()
             } catch {

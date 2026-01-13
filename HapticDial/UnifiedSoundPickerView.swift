@@ -17,7 +17,7 @@ struct UnifiedSoundPickerView: View {
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.gray)
-                    TextField("Search sounds...", text: $searchText)
+                    TextField("SEARCH_SOUNDS_PLACEHOLDER".localized, text: $searchText)
                         .autocapitalization(.none)
                 }
                 .padding(.horizontal)
@@ -65,18 +65,18 @@ struct UnifiedSoundPickerView: View {
                 }
                 .listStyle(PlainListStyle())
             }
-            .navigationTitle("Sound Selection")
+            .navigationTitle("SOUND_SELECTION_TITLE".localized)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
+                    Button("CANCEL_BUTTON".localized) {
                         dismiss()
                     }
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if soundManager.selectedSound != nil {
-                        Button("Apply") {
+                        Button("APPLY_BUTTON".localized) {
                             dismiss()
                         }
                         .foregroundColor(.blue)
@@ -172,14 +172,14 @@ struct EmptySoundView: View {
                 .foregroundColor(.gray)
             
             if searchText.isEmpty {
-                Text("No sounds available")
+                Text("NO_SOUNDS_AVAILABLE".localized)
                     .foregroundColor(.gray)
             } else {
                 VStack(spacing: 8) {
-                    Text("No sounds found")
+                    Text("NO_SOUNDS_FOUND".localized)
                         .foregroundColor(.gray)
                     
-                    Text("Try a different search term")
+                    Text("TRY_DIFFERENT_SEARCH_TERM".localized)
                         .font(.caption)
                         .foregroundColor(.gray.opacity(0.7))
                 }
@@ -211,7 +211,7 @@ struct UnifiedSoundOptionRow: View {
             .frame(width: 44, height: 44)
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(sound.name) // 改为使用 name 而不是 displayName
+                Text(sound.name)
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(isSelected ? .blue : .primary)
                 
@@ -228,7 +228,7 @@ struct UnifiedSoundOptionRow: View {
                         .background(Color.gray.opacity(0.2))
                         .cornerRadius(4)
                     
-                    Text(sound.type == .system ? "System" : "Custom")
+                    Text(sound.type == .system ? "SOUND_TYPE_SYSTEM".localized : "SOUND_TYPE_CUSTOM".localized)
                         .font(.system(size: 10))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)

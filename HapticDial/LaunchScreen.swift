@@ -206,8 +206,9 @@ struct LaunchScreen: View {
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
+                                
                                 .mask(
-                                    Text("ARC")
+                                    Text("Knob Spinner")
                                         .font(.system(size: 42, weight: .thin, design: .rounded))
                                 )
                             )

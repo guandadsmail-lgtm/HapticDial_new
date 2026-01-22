@@ -194,7 +194,7 @@ struct LaunchScreen: View {
                     
                     // 文字 "ARC"
                     VStack(spacing: 8) {
-                        Text("ARC")
+                        Text("Knob Spinner")
                             .font(.system(size: 42, weight: .thin, design: .rounded))
                             .foregroundColor(.white)
                             .overlay(

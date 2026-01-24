@@ -8,10 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		F225267B2F0D46E900970737 /* Zip in Frameworks */ = {isa = PBXBuildFile; productRef = F225267A2F0D46E900970737 /* Zip */; };
+		F281B7C92F249370004D2EAD /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = F281B7C82F249370004D2EAD /* Localizable.xcstrings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		F23882692F0D31AA00A066C6 /* HapticDial.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HapticDial.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F281B7C82F249370004D2EAD /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -37,6 +39,7 @@
 		F23882602F0D31AA00A066C6 = {
 			isa = PBXGroup;
 			children = (
+				F281B7C82F249370004D2EAD /* Localizable.xcstrings */,
 				F238826B2F0D31AA00A066C6 /* HapticDial */,
 				F238826A2F0D31AA00A066C6 /* Products */,
 			);
@@ -98,6 +101,10 @@
 			knownRegions = (
 				en,
 				Base,
+				"zh-Hans",
+				"zh-Hant",
+				ja,
+				"zh-HK",
 			);
 			mainGroup = F23882602F0D31AA00A066C6;
 			minimizedProjectReferenceProxies = 1;
@@ -119,6 +126,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F281B7C92F249370004D2EAD /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -195,6 +203,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
@@ -252,6 +261,7 @@
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
